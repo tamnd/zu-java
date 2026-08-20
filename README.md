@@ -68,7 +68,7 @@ A row at a time is a boundary crossing a cell, and a hundred crossings cost abou
 
 ## Getting rows in
 
-Two ways, and which one you want follows from whether the database exists yet.
+Two ways, and which one you want follows from whether the database exists yet. There is a third below for the rows that should not go in at all.
 
 A loader builds one out of whole columns. It is the fastest way values get in and, while the engine has no DDL, it is the only way a table comes into being at all:
 
@@ -110,6 +110,45 @@ What each is worth on an M-series laptop, JDK 25:
 The first two lines are the copy: 0.68 ns a row over a hundred thousand rows is 68 microseconds to move 800 KB, which is about what a memcpy costs and about what a direct buffer saves. It is a small share of a load that also writes a file, and it is the whole difference at the boundary itself.
 
 The last line is the one to read twice. A statement per row parses, plans, runs and commits per row, and none of that work says anything the row before it did not already say. That is what an appender is for.
+
+## Querying memory you already hold
+
+The third way is not to get the rows in at all. A frame names columns your program is already holding as a table of one connection, and statements read your buffers where they lie:
+
+```java
+LongBuffer ids = ByteBuffer.allocateDirect(3 * 8).order(nativeOrder()).asLongBuffer();
+ids.put(new long[] {1, 2, 3}).flip();
+
+try (Frame people = Frame.of("Person", 3)) {
+    people.column("id", ids);
+    conn.register(people);
+    try (Result r = conn.query("MATCH (p:Person) RETURN sum(p.id) AS total")) {
+        System.out.println(r.row(0).getLong(0));
+    }
+}
+```
+
+Nothing is copied at registration and nothing is copied at read. A scan builds vectors pointing straight at your buffers wherever the layouts agree, and the layouts that agree are the ones Arrow and this engine both keep: 64-bit signed integers, doubles, one bit a row for a boolean, and characters end to end with offsets cutting them up. A narrower integer, an unsigned one, a single-precision float and Arrow's microseconds against the nanoseconds this engine keeps time in are widened a value at a time as a statement reaches them, so a frame of a hundred columns costs you the one the statement named.
+
+Every buffer has to be direct, and one that is not is refused rather than copied. Everywhere else in this API a heap buffer costs a memcpy and nothing else, because the call reads it and is finished. A frame keeps the pointer for as long as it is registered, so a copy here would mean the engine reading a copy of your data for the rest of the frame's life, which is a frame that is not a frame.
+
+The buffers stay yours and the library never writes one, but a direct buffer is looked after for you: the frame holds a reference to everything handed to it and lets go at the moment the engine says it has finished, which is after the last statement reading the frame ends and is neither the unregister that preceded it nor the close. So a buffer cannot be collected out from under a running statement. The optional release callback runs at that same moment, and it is there for the other kind of buffer, one over memory you allocated yourself or one a lock has to be taken to let go of.
+
+A frame is read only and has no edges. A statement that would write to one is refused, a name a stored table already holds is refused, a name another frame holds replaces that frame, and registering inside a transaction is refused because a table appearing halfway through one is not something the transaction could then be rolled back over.
+
+A million rows, three columns, the same laptop:
+
+| How | Per row |
+|---|---|
+| describing them and registering them | 0.51 ns |
+| the same million rows through a loader, write included | 630 ns |
+| `sum(p.id)` over a frame | 1.06 ns |
+| `sum(p.id)` over the same numbers in a database | 1.14 ns |
+| the same over a 32-bit column, which is widened as it is read | 1.32 ns |
+| a string comparison over a frame | 2.26 ns |
+| the same over a database | 3.89 ns |
+
+The first two lines are the whole point. Half a millisecond to make a million rows queryable against six hundred to write them down, and the three lines after that say the query is not paying for it afterwards.
 
 ## How it binds
 

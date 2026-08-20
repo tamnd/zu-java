@@ -1,6 +1,8 @@
 package dev.zudb;
 
 import dev.zudb.spi.ZuBinding;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -82,6 +84,65 @@ public final class Connection implements AutoCloseable {
    */
   public Appender appender(String table) {
     return new Appender(zu, zu.appenderOpen(open(), table));
+  }
+
+  /**
+   * Names a frame as a table of this connection, so that statements read the
+   * caller's own columns where they lie.
+   *
+   * <p>Nothing is copied here or at read. The frame is not spent either, so
+   * the same columns may be registered on as many connections as there are
+   * threads to query them from.
+   *
+   * <p>This is where everything a frame's description could get wrong is
+   * settled: alignment, an unsigned value too large for the signed lane, a
+   * scale that would overflow, an offset that leaves its buffer. After it
+   * returns, a read of the frame cannot fail.
+   *
+   * @param frame the columns and what they are called
+   * @throws ZuException if a stored table already holds the name, or if a
+   *     transaction is running, since a table appearing halfway through one is
+   *     not something the transaction could be rolled back over
+   */
+  public void register(Frame frame) {
+    zu.connRegister(open(), frame.handle());
+  }
+
+  /**
+   * Drops a registered frame.
+   *
+   * <p>A statement already running keeps the frame it started with, and the
+   * release callback waits for it.
+   *
+   * @param name the table name it was registered under
+   * @return whether there was one under that name
+   */
+  public boolean unregister(String name) {
+    return zu.connUnregister(open(), name);
+  }
+
+  /**
+   * How many frames are registered.
+   *
+   * @return the count
+   */
+  public long registeredCount() {
+    return zu.connRegisteredCount(open());
+  }
+
+  /**
+   * What every registered frame is called, sorted.
+   *
+   * @return the names, which is a list of its own and not a view of anything
+   */
+  public List<String> registeredNames() {
+    long h = open();
+    long count = zu.connRegisteredCount(h);
+    List<String> names = new ArrayList<>((int) count);
+    for (long i = 0; i < count; i++) {
+      names.add(zu.connRegisteredName(h, i));
+    }
+    return names;
   }
 
   /**

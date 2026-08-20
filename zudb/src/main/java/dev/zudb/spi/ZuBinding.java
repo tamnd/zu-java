@@ -1,6 +1,7 @@
 package dev.zudb.spi;
 
 import dev.zudb.Diagnostic;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.DoubleBuffer;
 import java.nio.IntBuffer;
@@ -811,4 +812,146 @@ public interface ZuBinding {
    * @param appender the appender
    */
   void appenderFree(long appender);
+
+  // ---- frames ----
+
+  /**
+   * Describes a table of columns the host already holds, which the engine
+   * will read where they lie.
+   *
+   * <p>Every buffer handed to a {@code frameColumn} call below has to be a
+   * direct one. A frame keeps the pointer rather than the values, and a heap
+   * buffer has no address anything outside the JVM can keep. A provider
+   * refuses one rather than copying, because a copy would quietly undo the
+   * only thing a frame is for.
+   *
+   * @param name what the table is called in a statement
+   * @param rows how many rows every column of it carries
+   * @param release run once, on a thread of the library's, after the last
+   *     statement reading this frame ends, or null for a host whose buffers
+   *     outlive the process
+   * @return the handle
+   */
+  long frameNew(String name, long rows, Runnable release);
+
+  /**
+   * A column of integers, or of a temporal counted as integers.
+   *
+   * @param frame the frame
+   * @param name the column
+   * @param values the buffer, which has to be direct
+   * @param count how many values are in it
+   * @param bits 8, 16, 32 or 64, where 64 signed at scale 1 is the lane this
+   *     engine reads natively and the column that costs nothing at all
+   * @param signed whether they are signed
+   * @param scale what one value is multiplied by to reach the unit its
+   *     meaning counts in, so 1 for an integer and a date and 1000 for the
+   *     microseconds Arrow keeps a timestamp in
+   * @param temporal one of the {@code ZU_TEMPORAL_} kinds, or -1 for a column
+   *     of numbers and nothing else
+   */
+  void frameColumnInts(
+      long frame,
+      String name,
+      Buffer values,
+      long count,
+      int bits,
+      boolean signed,
+      long scale,
+      int temporal);
+
+  /**
+   * A column of floating point numbers.
+   *
+   * @param frame the frame
+   * @param name the column
+   * @param values the buffer, which has to be direct
+   * @param count how many values are in it
+   * @param bits 32 or 64, where 64 is the lane
+   */
+  void frameColumnFloats(long frame, String name, Buffer values, long count, int bits);
+
+  /**
+   * A column of booleans, one bit a row, low bit of the first byte first,
+   * which is Arrow's bitmap and this engine's alike.
+   *
+   * @param frame the frame
+   * @param name the column
+   * @param bitmap the buffer, which has to be direct
+   * @param count how many rows are in it, which the bitmap cannot say
+   */
+  void frameColumnBooleans(long frame, String name, Buffer bitmap, long count);
+
+  /**
+   * A column of strings as Arrow keeps them, characters end to end with
+   * offsets cutting them up.
+   *
+   * @param frame the frame
+   * @param name the column
+   * @param offsets the offsets, which has to be direct, and of which there
+   *     are count + 1
+   * @param wide false for 32-bit offsets, which is Arrow's Utf8, and true for
+   *     64-bit, which is its LargeUtf8
+   * @param data the characters, which has to be direct
+   * @param count how many rows are in it
+   */
+  void frameColumnStrings(
+      long frame, String name, Buffer offsets, boolean wide, Buffer data, long count);
+
+  /**
+   * A column of strings as Arrow's Utf8View keeps them, sixteen bytes a row
+   * over one or more data buffers.
+   *
+   * @param frame the frame
+   * @param name the column
+   * @param views the views, which has to be direct
+   * @param data the buffers they point into, each of which has to be direct
+   * @param count how many rows are in it
+   */
+  void frameColumnViews(long frame, String name, Buffer views, List<Buffer> data, long count);
+
+  /**
+   * Releases a frame. The handle is the caller's on every path, so this is
+   * what ends one whether or not it was ever registered.
+   *
+   * @param frame the frame
+   */
+  void frameFree(long frame);
+
+  /**
+   * Registers a frame as a table of this connection. Does not spend the
+   * frame, which may be registered on as many connections as you like.
+   *
+   * @param conn the connection
+   * @param frame the frame
+   */
+  void connRegister(long conn, long frame);
+
+  /**
+   * Drops a registered frame.
+   *
+   * @param conn the connection
+   * @param name the table name it was registered under
+   * @return whether there was one under that name
+   */
+  boolean connUnregister(long conn, String name);
+
+  /**
+   * How many frames are registered, which is also the call that refreshes
+   * the names {@link #connRegisteredName(long, long)} hands out.
+   *
+   * @param conn the connection
+   * @return the count
+   */
+  long connRegisteredCount(long conn);
+
+  /**
+   * One registered name, in the sorted order the last count call read them
+   * in.
+   *
+   * @param conn the connection
+   * @param index from nought
+   * @return the name, or null out of range
+   */
+  String connRegisteredName(long conn, long index);
 }
