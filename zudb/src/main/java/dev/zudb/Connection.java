@@ -120,7 +120,7 @@ public final class Connection implements AutoCloseable {
    * @return the result, which the caller closes
    */
   public Result query(String statement) {
-    return new Result(zu, zu.query(open(), statement));
+    return new Result(zu, zu.query(open(), statement), this);
   }
 
   /**
@@ -144,7 +144,7 @@ public final class Connection implements AutoCloseable {
    * @return the statement, which the caller closes
    */
   public Statement prepare(String statement) {
-    return new Statement(zu, zu.prepare(open(), statement));
+    return new Statement(zu, zu.prepare(open(), statement), this);
   }
 
   /**
@@ -434,5 +434,18 @@ public final class Connection implements AutoCloseable {
           Diagnostic.misuse(Status.MISUSE_CLOSED, "this connection is closed"));
     }
     return h;
+  }
+
+  /**
+   * The handle, or zero once this connection has closed, for the one call
+   * that has something to say either way.
+   *
+   * <p>Exporting a result to Arrow reads node table names out of the catalog
+   * this connection holds, and a result outlives its connection on purpose,
+   * so a connection that has gone is not a failure there. It costs the names,
+   * which the export says in its own documentation, and nothing else.
+   */
+  long lend() {
+    return handle.get();
   }
 }

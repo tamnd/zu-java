@@ -25,12 +25,14 @@ import java.util.stream.StreamSupport;
  * outlive is {@link #close()}, and that includes every buffer the columnar
  * readers handed back and every string that came out of a row.
  *
- * <p>There are three ways to read it, in the order you reach for them.
+ * <p>There are four ways to read it, in the order you reach for them.
  * {@link #stream()} for a row at a time, which is what most code wants.
  * {@link #longs(int)} and the three beside it for a whole column, borrowed
  * from the engine rather than copied, which is what a million rows wants.
  * {@link #chunks()} for a whole column read a chunk at a time, which is what
- * a million rows wants when you are not going to read all of them.
+ * a million rows wants when you are not going to read all of them. And
+ * {@link #exportArrow(long, long)} for handing the whole thing to something
+ * else entirely, which spends the result rather than reading it.
  *
  * <pre>{@code
  * try (Result r = conn.query("MATCH (p:Person) RETURN p.name AS name")) {
@@ -40,16 +42,24 @@ import java.util.stream.StreamSupport;
  */
 public final class Result implements AutoCloseable, Iterable<Row> {
 
+  /**
+   * How many rows a consumer sees per Arrow batch when nobody names a number,
+   * which is what {@link #exportArrow(long)} asks the engine for.
+   */
+  public static final long DEFAULT_BATCH = 65536;
+
   private final ZuBinding zu;
   private final AtomicLong handle;
+  private final Connection conn;
   private final long rows;
   private final int columns;
   private final List<String> names;
   private final Map<String, Integer> byName;
 
-  Result(ZuBinding zu, long handle) {
+  Result(ZuBinding zu, long handle, Connection conn) {
     this.zu = zu;
     this.handle = new AtomicLong(handle);
+    this.conn = conn;
     this.rows = zu.resultRows(handle);
     this.columns = zu.resultCols(handle);
     List<String> found = new ArrayList<>(columns);
@@ -332,18 +342,91 @@ public final class Result implements AutoCloseable, Iterable<Row> {
   /**
    * Every chunk, in order.
    *
-   * <p>Which of these to use is a question of size. A point read wants a
-   * whole column, because the answer is small and one call beats a loop.
-   * Every large answer wants chunks, because the whole-column call converts
-   * all of it before returning any of it and keeps the conversion until the
-   * result is freed: reading the first hundred rows of a million-row column
-   * and stopping pays for the other 999,900.
+   * <p>Which of these to use is a question of size, and only for the columns
+   * the engine did not fill. On those, the whole-column call converts all of
+   * the column before returning any of it and keeps the conversion until the
+   * result is freed, so reading the first hundred rows of a million-row
+   * column and stopping pays for the other 999,900. On a column the engine
+   * filled, which is every plan whose projection is a scan of stored values,
+   * both calls are views of the buffer it wrote and neither converts
+   * anything, so the choice is about the shape of the reading loop and
+   * nothing else.
    *
    * @return the chunks
    */
   public Stream<Chunk> chunks() {
     long count = chunkCount();
     return java.util.stream.LongStream.range(0, count).mapToObj(this::chunk);
+  }
+
+  // ---- arrow ----
+
+  /**
+   * Hands the whole result to an Arrow consumer through the C Data Interface
+   * and spends it, in batches of {@link #DEFAULT_BATCH} rows.
+   *
+   * @param stream the address of an {@code ArrowArrayStream} the caller owns
+   *     and has not initialised
+   */
+  public void exportArrow(long stream) {
+    exportArrow(stream, 0);
+  }
+
+  /**
+   * Hands the whole result to an Arrow consumer through the C Data Interface
+   * and spends it.
+   *
+   * <p>This is the low-level door, and most programs want {@code zudb-arrow}
+   * rather than this: that module wraps this call in the {@code ArrowReader}
+   * arrow-java already knows how to read, and it is a separate artifact so
+   * that a program with no use for Arrow does not carry the dependency. What
+   * is here is what that module needs and what a program with its own Arrow
+   * bindings can use instead.
+   *
+   * <p>The two arguments are checked here rather than by the engine, so a call
+   * refused for a stream that is nowhere or a batch of fewer than no rows
+   * handed nothing over and spent nothing: that result is still there to read
+   * the ordinary way, or to export once the argument is right.
+   *
+   * <p>Nothing on this path is a copy. The arrays that cross are the buffers
+   * the executor filled, at the addresses it filled them at, which is why the
+   * result is spent: after the buffers have left there is nothing here to
+   * read a second time. So this result is closed whatever the call answered,
+   * including a refusal, every buffer a columnar reader handed out before it
+   * now belongs to the Arrow consumer, and closing it again afterwards is the
+   * no-op it always was.
+   *
+   * <p>A node column names its table out of the catalog the connection holds.
+   * A connection that has already closed is not a failure here, and the
+   * export then names a table after its id, which is still an answer for a
+   * program that kept a result and let its connection go.
+   *
+   * @param stream the address of an {@code ArrowArrayStream} the caller owns
+   *     and has not initialised, written only on success and released through
+   *     its own release callback rather than by anything here
+   * @param rowsPerBatch how many rows a consumer sees at a time, or zero for
+   *     {@link #DEFAULT_BATCH}. The batches are slices of arrays that are
+   *     already in memory, so this is about what a consumer likes to work in
+   *     and not about what gets allocated
+   * @throws ZuProgrammingException if the stream address is zero, the batch
+   *     is negative, or a column holds something Arrow has no type for
+   * @throws ZuClosedException if this result is already closed
+   */
+  public void exportArrow(long stream, long rowsPerBatch) {
+    long h = open();
+    if (stream == 0) {
+      throw new ZuProgrammingException(
+          Diagnostic.misuse(Status.MISUSE, "the stream to export into is null"));
+    }
+    if (rowsPerBatch < 0) {
+      throw new ZuProgrammingException(
+          Diagnostic.misuse(Status.MISUSE, "a batch of fewer than no rows: " + rowsPerBatch));
+    }
+    // The handle goes before the call rather than after it. The engine nulls
+    // the result on every path it takes, refusals included, so a result this
+    // still thought it owned would be one a later close would free twice.
+    handle.set(0);
+    zu.resultArrow(conn == null ? 0 : conn.lend(), h, rowsPerBatch, stream);
   }
 
   /**

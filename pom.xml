@@ -50,6 +50,7 @@
   <modules>
     <module>zudb</module>
     <module>zudb-ffm</module>
+    <module>zudb-arrow</module>
     <module>zudb-bench</module>
   </modules>
 
@@ -77,6 +78,12 @@
          restating the flags the suite cannot run without. -->
     <zu.test.args></zu.test.args>
 
+    <!-- arrow-java, named in one module and nowhere else. It moves on
+         its own schedule and an application usually pins its own, which
+         is the other reason the Arrow reader is an artifact of its own
+         rather than a package in the client. -->
+    <arrow.version>19.0.0</arrow.version>
+
     <junit.version>6.1.3</junit.version>
     <maven.compiler.plugin.version>3.15.0</maven.compiler.plugin.version>
     <maven.surefire.plugin.version>3.5.6</maven.surefire.plugin.version>
@@ -95,6 +102,13 @@
         <groupId>dev.zudb</groupId>
         <artifactId>zudb</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.arrow</groupId>
+        <artifactId>arrow-bom</artifactId>
+        <version>${arrow.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
       </dependency>
       <dependency>
         <groupId>org.junit</groupId>

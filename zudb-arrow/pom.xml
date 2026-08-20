@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The Arrow reader. Thirty lines over arrow-java, because the work
+  happens on the other side of the C Data Interface.
+
+  It is a separate artifact so that a program with no use for Arrow does
+  not carry arrow-java, which is the largest dependency anything in this
+  repository would have and the one most likely to clash with a version
+  an application already pins.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.zudb</groupId>
+    <artifactId>zudb-parent</artifactId>
+    <version>0.11.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>zudb-arrow</artifactId>
+  <name>zu for the JVM: Arrow</name>
+  <description>A zu result as an Arrow reader, over the C Data Interface, without a copy.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.arrow</groupId>
+      <artifactId>arrow-c-data</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.arrow</groupId>
+      <artifactId>arrow-vector</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.arrow</groupId>
+      <artifactId>arrow-memory-core</artifactId>
+    </dependency>
+
+    <!-- The provider and an allocator, both of which an application
+         picks for itself and neither of which this module should force
+         on it. The tests need one of each to run at all. -->
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb-ffm</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.arrow</groupId>
+      <artifactId>arrow-memory-unsafe</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>${zu.release.api}</release>
+        </configuration>
+        <executions>
+          <execution>
+            <id>default-testCompile</id>
+            <configuration>
+              <!-- One lint off, and only here. Arrow's own classes are
+                   annotated with checkerframework's, which arrow ships
+                   as provided and nobody downstream has on a classpath,
+                   so javac reports an annotation it cannot read every
+                   time a test touches an allocator. It is a warning
+                   about arrow's build rather than about ours, and -Werror
+                   would otherwise make it a failure. -->
+              <compilerArgs>
+                <arg>-Xlint:all,-requires-automatic,-requires-transitive-automatic,-classfile</arg>
+                <arg>-Werror</arg>
+              </compilerArgs>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- The tests link against the engine through the Panama
+               provider, so they need the grant it needs, and arrow's
+               allocator reaches into java.nio, so they need that opened
+               to it. Both are what an application running this stack
+               passes, and the README says so. -->
+          <useModulePath>false</useModulePath>
+          <argLine>--enable-native-access=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow ${zu.test.args}</argLine>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

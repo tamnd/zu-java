@@ -598,6 +598,32 @@ final class FfmBinding implements ZuBinding {
   }
 
   @Override
+  public void resultArrow(long conn, long result, long rowsPerBatch, long stream) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    clear(sl);
+    // The engine takes the result through a pointer to it and writes null
+    // back, so the handle has to be somewhere it can write rather than in a
+    // register. The slot it lands in is read for nothing afterwards: the API
+    // module treats the result as gone whatever this answered, because the
+    // engine nulled it on the refusal path too.
+    sl.set(ADDRESS, OUT, ptr(result));
+    try {
+      int st =
+          (int)
+              abi.resultArrow.invokeExact(
+                  ptr(conn),
+                  sl.asSlice(OUT, 8),
+                  rowsPerBatch,
+                  ptr(stream),
+                  sl.asSlice(ERR, 8));
+      check("zu_result_arrow", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_result_arrow", t);
+    }
+  }
+
+  @Override
   public long resultCell(long result, long row, int col) {
     Scratch s = Scratch.get();
     MemorySegment sl = s.slots();

@@ -37,6 +37,14 @@ jobs:
       # gets exactly this artifact and the JNI provider beside it.
       - run: mvn $MAVEN_ARGS -pl zudb -am test
 
+      # The Arrow reader is a 17 artifact as well, and the README says so
+      # in a table. This is what keeps that true. Its tests need the FFM
+      # provider to run against, which this JDK cannot build, so what is
+      # checked here is that the sources a 17 caller compiles against
+      # compile on 17.
+      - run: mvn $MAVEN_ARGS -pl zudb -am install -DskipTests
+      - run: mvn $MAVEN_ARGS -pl zudb-arrow compile
+
   # The whole client against the engine at its own HEAD, which is what
   # makes a red job here mean the binding is wrong about the ABI rather
   # than that a checked-in copy of something is stale.
