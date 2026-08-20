@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The Panama provider. This is the artifact that actually calls libzu,
+  and the only one in the repository that needs a JDK newer than 17.
+
+  It is a separate artifact rather than a multi-release jar because a
+  multi-release jar would put class files for 25 in front of a 17
+  compiler's eyes at build time and in front of every static analyser
+  that does not know the rules. Two jars, one dependency, and the
+  service loader picks.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.zudb</groupId>
+    <artifactId>zudb-parent</artifactId>
+    <version>0.11.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>zudb-ffm</artifactId>
+  <name>zu for the JVM: Panama provider</name>
+  <description>The zu provider over the Foreign Function and Memory API, for JDK 25 and later.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb</artifactId>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>${zu.release.ffm}</release>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <!-- From JDK 24 a downcall out of a module that was not
+                   granted native access warns, and the warning is on a
+                   path to becoming an error. This attribute is how a jar
+                   on the class path asks for the grant, so that a user
+                   who never reads a release note never sees the warning.
+                   A user on the module path passes the enable native
+                   access flag naming dev.zudb.ffm instead, and
+                   FfmProvider says so in the exception when neither is
+                   in place. -->
+              <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- The tests run on the module path, patched into dev.zudb.ffm,
+               so the grant names the module rather than the unnamed one.
+               This is the same flag the README tells a user on the module
+               path to pass. -->
+          <argLine>--enable-native-access=dev.zudb.ffm ${zu.test.args}</argLine>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
