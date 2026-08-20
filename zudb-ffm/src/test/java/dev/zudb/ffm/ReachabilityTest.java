@@ -128,15 +128,34 @@ class ReachabilityTest {
     return sb.append("}").toString();
   }
 
-  /** A layout as the image builder spells it. */
+  /**
+   * A layout as the image builder spells it, which is C's spelling rather
+   * than Java's: the file names canonical layouts, the ones
+   * {@link java.lang.foreign.Linker#canonicalLayouts()} answers to.
+   *
+   * <p>{@code long long} rather than {@code long} for a 64-bit integer, and
+   * that matters: C's {@code long} is four bytes on Windows and eight
+   * everywhere else, and this file is written once and read on all of them.
+   * {@code size_t} is deliberately not used for the same reason, since a
+   * descriptor built from it is the same descriptor as one built from a
+   * {@code long long} on every platform this ships to and naming the concrete
+   * width keeps the file from meaning two things.
+   */
   private static String type(MemoryLayout layout) {
     if (layout instanceof AddressLayout) {
-      return "pointer";
+      return "void*";
     }
     if (layout instanceof ValueLayout value) {
-      // The carrier rather than the name, because size_t is a long here and
-      // an int somewhere else and the builder wants to be told which.
-      return value.carrier().getSimpleName();
+      return switch (value.carrier().getSimpleName()) {
+        case "int" -> "int";
+        case "long" -> "long long";
+        case "double" -> "double";
+        case "float" -> "float";
+        case "short" -> "short";
+        case "byte" -> "char";
+        case "boolean" -> "bool";
+        default -> throw new IllegalStateException("no spelling for " + layout);
+      };
     }
     throw new IllegalStateException("no spelling for " + layout);
   }
