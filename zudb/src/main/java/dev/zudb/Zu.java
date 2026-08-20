@@ -37,7 +37,7 @@ public final class Zu {
    * has every symbol this client calls, which is the mismatch that actually
    * bites, and it names the missing one.
    */
-  public static final String ABI_VERSION = "0.11";
+  public static final String ABI_VERSION = "0.12";
 
   private static final Logger LOG = System.getLogger("dev.zudb");
 
