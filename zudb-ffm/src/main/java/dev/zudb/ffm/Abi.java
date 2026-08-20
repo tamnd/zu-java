@@ -107,6 +107,34 @@ final class Abi {
   final MethodHandle chunkColNodeOffset;
   final MethodHandle chunkColValid;
 
+  final MethodHandle loaderCreate;
+  final MethodHandle loaderTable;
+  final MethodHandle loaderEdges;
+  final MethodHandle loaderColI64;
+  final MethodHandle loaderColF64;
+  final MethodHandle loaderColBool;
+  final MethodHandle loaderColStr;
+  final MethodHandle loaderColTemporal;
+  final MethodHandle loaderFinish;
+  final MethodHandle loaderFree;
+
+  final MethodHandle appenderOpen;
+  final MethodHandle appendBool;
+  final MethodHandle appendI64;
+  final MethodHandle appendF64;
+  final MethodHandle appendStr;
+  final MethodHandle appendBytes;
+  final MethodHandle appendTemporal;
+  final MethodHandle appendEndRow;
+  final MethodHandle appenderFlush;
+  final MethodHandle appenderBuffered;
+  final MethodHandle appenderCommitted;
+  final MethodHandle appenderCols;
+  final MethodHandle appenderColName;
+  final MethodHandle appenderDiscard;
+  final MethodHandle appenderClose;
+  final MethodHandle appenderFree;
+
   final MethodHandle valueType;
   final MethodHandle valueBool;
   final MethodHandle valueI64;
@@ -223,6 +251,70 @@ final class Abi {
         h(
             "zu_result_chunk_col_valid",
             FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, JAVA_INT, ADDRESS));
+
+    loaderCreate =
+        h("zu_loader_create", FunctionDescriptor.of(JAVA_INT, ADDRESS, SIZE_T, ADDRESS, ADDRESS));
+    loaderTable =
+        h(
+            "zu_loader_table",
+            FunctionDescriptor.of(
+                JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS, SIZE_T, JAVA_LONG, ADDRESS));
+    loaderEdges =
+        h(
+            "zu_loader_edges",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
+    loaderColI64 =
+        h(
+            "zu_loader_col_i64",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS, JAVA_LONG, ADDRESS));
+    loaderColF64 =
+        h(
+            "zu_loader_col_f64",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS, JAVA_LONG, ADDRESS));
+    loaderColBool =
+        h(
+            "zu_loader_col_bool",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS, JAVA_LONG, ADDRESS));
+    loaderColStr =
+        h(
+            "zu_loader_col_str",
+            FunctionDescriptor.of(
+                JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
+    loaderColTemporal =
+        h(
+            "zu_loader_col_temporal",
+            FunctionDescriptor.of(
+                JAVA_INT, ADDRESS, ADDRESS, SIZE_T, JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS));
+    loaderFinish = h("zu_loader_finish", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    loaderFree = h("zu_loader_free", FunctionDescriptor.ofVoid(ADDRESS));
+
+    appenderOpen =
+        h(
+            "zu_appender_open",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS, ADDRESS));
+    appendBool = h("zu_append_bool", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS));
+    appendI64 = h("zu_append_i64", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS));
+    appendF64 = h("zu_append_f64", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_DOUBLE, ADDRESS));
+    appendStr =
+        h("zu_append_str", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS));
+    appendBytes =
+        h("zu_append_bytes", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS));
+    appendTemporal =
+        h(
+            "zu_append_temporal",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_LONG, ADDRESS));
+    appendEndRow = h("zu_append_end_row", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    appenderFlush = h("zu_appender_flush", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    appenderBuffered = h("zu_appender_buffered", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    appenderCommitted =
+        h("zu_appender_committed", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    appenderCols = h("zu_appender_cols", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    appenderColName =
+        h("zu_appender_col_name", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
+    appenderDiscard = h("zu_appender_discard", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    appenderClose =
+        h("zu_appender_close", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
+    appenderFree = h("zu_appender_free", FunctionDescriptor.ofVoid(ADDRESS));
 
     valueType = critical("zu_value_type", FunctionDescriptor.of(JAVA_INT, ADDRESS));
     valueBool = h("zu_value_bool", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));

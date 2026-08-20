@@ -71,6 +71,20 @@ public final class Connection implements AutoCloseable {
   }
 
   /**
+   * Opens an appender on a table, which is how rows get in without a
+   * statement anywhere near them.
+   *
+   * <p>The appender writes through this connection for as long as it is open,
+   * so close it before the connection goes back to a pool.
+   *
+   * @param table the table to write to, which has to exist already
+   * @return the appender, which the caller closes
+   */
+  public Appender appender(String table) {
+    return new Appender(zu, zu.appenderOpen(open(), table));
+  }
+
+  /**
    * A second connection on the database this one is already on, made without
    * a path.
    *
