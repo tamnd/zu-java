@@ -66,6 +66,51 @@ What it is worth, summing one integer column of a hundred thousand rows on an M-
 
 A row at a time is a boundary crossing a cell, and a hundred crossings cost about what one borrowed buffer costs. Both surfaces are there because both are the right answer to a different question, but a loop over a million rows should be reading a column.
 
+## Getting rows in
+
+Two ways, and which one you want follows from whether the database exists yet.
+
+A loader builds one out of whole columns. It is the fastest way values get in and, while the engine has no DDL, it is the only way a table comes into being at all:
+
+```java
+try (Loader loader = Loader.create(Path.of("social.zu1"))) {
+    loader.table("Person", "Follows", 3);
+    loader.column("id", 1L, 2L, 3L);
+    loader.column("name", "ada", "grace", "alan");
+    loader.edges(new int[] {0, 1}, new int[] {1, 2});
+    loader.finish();
+}
+```
+
+Columns go in as arrays or as `java.nio` buffers, and which you pass is the difference between a copy and no copy. A direct buffer is read where it lies, so the engine sees the memory your program already filled and nothing crosses the boundary but a pointer. An array is memory nothing outside the JVM can address, so it is copied off-heap first. `Linker.Option.critical(true)` would let a Java array through without either, at the price of blocking the collector for the length of the copy, and on a column this size that is not a trade worth making.
+
+An appender adds rows to a table that already exists, a value at a time, with no statement anywhere near it:
+
+```java
+try (Appender rows = conn.appender("Person")) {
+    rows.append(4L).append("hedy").endRow();
+    rows.append(5L).append("katherine").endRow();
+    rows.finish();
+}
+```
+
+Values are written in the order the table declares its columns, which `columnName(int)` will tell you, and a row is a row once `endRow()` has ended it. A value the column will not take ends its row there and rolls back the values already written into it, so a refused append never leaves half a row behind. Closing an appender that was never finished writes what it has anyway, because a loop that threw halfway should keep the rows it managed; `discard()` is there for when it should not.
+
+What each is worth on an M-series laptop, JDK 25:
+
+| How | Per row |
+|---|---|
+| `loader.column(name, direct LongBuffer)` | 0.44 ns |
+| `loader.column(name, long[])` | 1.1 ns |
+| `loader.column(name, List<String>)` | 108 ns |
+| a whole two-column load, write included | 630 ns |
+| `appender.append(...).endRow()` | 87 ns |
+| the same row as an `INSERT` statement | 4.0 ms |
+
+The first two lines are the copy: 0.68 ns a row over a hundred thousand rows is 68 microseconds to move 800 KB, which is about what a memcpy costs and about what a direct buffer saves. It is a small share of a load that also writes a file, and it is the whole difference at the boundary itself.
+
+The last line is the one to read twice. A statement per row parses, plans, runs and commits per row, and none of that work says anything the row before it did not already say. That is what an appender is for.
+
 ## How it binds
 
 The Foreign Function and Memory API is the primary path. The downcall handles are written by hand against `zu.h` rather than generated with `jextract`, because the C ABI here is around seventy functions with a stable shape, and a hand-written layer is where the interesting decisions live: which calls are `Linker.Option.critical` because they are short pure accessors, where the out-parameter scratch space comes from so that a query does not allocate, and how a `zu_error` becomes a typed Java exception exactly once. There is no native code in this repository beyond `libzu` itself.
@@ -99,7 +144,7 @@ catch (ZuSyntaxException e) {
 
 ## What works today
 
-The engine has no DDL yet, so there is no `CREATE NODE TABLE` and nothing in this client writes a schema. What runs against a fresh database is the expression and projection surface: `RETURN`, `UNWIND`, parameters, lists, records, and the temporal types. The example at the top of this file describes the intended shape and needs a graph that some other tool built.
+The engine has no DDL yet, so there is no `CREATE NODE TABLE` and no statement in this client writes a schema. A table comes into being through `Loader`, which is why the loader example above builds the graph the example at the top of this file reads. What runs against a fresh database with nothing in it is the expression and projection surface: `RETURN`, `UNWIND`, parameters, lists, records, and the temporal types.
 
 ## Building
 

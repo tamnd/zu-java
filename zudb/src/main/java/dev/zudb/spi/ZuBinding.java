@@ -3,7 +3,9 @@ package dev.zudb.spi;
 import dev.zudb.Diagnostic;
 import java.nio.ByteBuffer;
 import java.nio.DoubleBuffer;
+import java.nio.IntBuffer;
 import java.nio.LongBuffer;
+import java.util.List;
 
 /**
  * The C ABI, as Java. One method per call in {@code zu.h}, named for it, and
@@ -578,4 +580,235 @@ public interface ZuBinding {
    * @return the name, never null
    */
   String valueField(long value, long index);
+
+  // ---- bulk load ----
+
+  /**
+   * Starts a load, which builds a database that does not exist yet.
+   *
+   * @param path the file to make, which must not exist
+   * @return the loader handle
+   */
+  long loaderCreate(String path);
+
+  /**
+   * Names the one table this load builds and how many rows it holds.
+   *
+   * @param loader the loader
+   * @param nodes what the node table is called
+   * @param edges what the relationship table is called, which the engine wants
+   *     even for a load that adds no edges at all
+   * @param rows how many rows every column will carry
+   */
+  void loaderTable(long loader, String nodes, String edges, long rows);
+
+  /**
+   * Adds edges, as the row each starts at and the row it ends at. Appends, so
+   * it may be called as often as the caller likes.
+   *
+   * @param loader the loader
+   * @param from the starting row of each edge
+   * @param to the ending row of each edge
+   */
+  void loaderEdges(long loader, IntBuffer from, IntBuffer to);
+
+  /**
+   * Adds a column of integers.
+   *
+   * <p>A direct buffer is read where it lies and nothing is copied on this side
+   * of the boundary. A heap buffer is copied off-heap first, because a native
+   * function cannot be handed a Java array without either a copy or a pause
+   * long enough to matter on a column this size.
+   *
+   * @param loader the loader
+   * @param name what the column is called
+   * @param values the values, of which {@code remaining()} are read
+   */
+  void loaderColumnLongs(long loader, String name, LongBuffer values);
+
+  /**
+   * Adds a column of doubles.
+   *
+   * @param loader the loader
+   * @param name what the column is called
+   * @param values the values, of which {@code remaining()} are read
+   */
+  void loaderColumnDoubles(long loader, String name, DoubleBuffer values);
+
+  /**
+   * Adds a column of booleans, one {@code int} a row, where anything not zero
+   * is true.
+   *
+   * @param loader the loader
+   * @param name what the column is called
+   * @param values the values, of which {@code remaining()} are read
+   */
+  void loaderColumnBooleans(long loader, String name, IntBuffer values);
+
+  /**
+   * Adds a column of strings. Every one is checked for UTF-8 by the engine as
+   * it arrives rather than read back later as something no query could return.
+   *
+   * @param loader the loader
+   * @param name what the column is called
+   * @param values the values, none of which may be null
+   */
+  void loaderColumnStrings(long loader, String name, List<String> values);
+
+  /**
+   * Adds a column of dates, times, datetimes or durations, as one kind and the
+   * count each row holds in the unit that kind implies.
+   *
+   * @param loader the loader
+   * @param name what the column is called
+   * @param kind which of the {@code ZU_TEMPORAL_} kinds every row is
+   * @param values the counts, of which {@code remaining()} are read
+   */
+  void loaderColumnTemporal(long loader, String name, int kind, LongBuffer values);
+
+  /**
+   * Writes it all. The database is on disk when this returns.
+   *
+   * @param loader the loader
+   */
+  void loaderFinish(long loader);
+
+  /**
+   * Releases a loader. A loader freed before it finished wrote nothing.
+   *
+   * @param loader the loader
+   */
+  void loaderFree(long loader);
+
+  // ---- appending ----
+
+  /**
+   * Opens an appender on a table that already exists.
+   *
+   * @param conn the connection to write through
+   * @param table what the table is called
+   * @return the appender handle
+   */
+  long appenderOpen(long conn, String table);
+
+  /**
+   * Appends one boolean to the row being written.
+   *
+   * @param appender the appender
+   * @param value the value
+   */
+  void appendBoolean(long appender, boolean value);
+
+  /**
+   * Appends one integer to the row being written.
+   *
+   * @param appender the appender
+   * @param value the value
+   */
+  void appendLong(long appender, long value);
+
+  /**
+   * Appends one double to the row being written.
+   *
+   * @param appender the appender
+   * @param value the value
+   */
+  void appendDouble(long appender, double value);
+
+  /**
+   * Appends one string to the row being written.
+   *
+   * @param appender the appender
+   * @param value the value
+   */
+  void appendString(long appender, String value);
+
+  /**
+   * Appends one run of bytes to the row being written.
+   *
+   * @param appender the appender
+   * @param value the bytes, of which {@code remaining()} are read
+   */
+  void appendBytes(long appender, ByteBuffer value);
+
+  /**
+   * Appends one date, time, datetime or duration to the row being written.
+   *
+   * @param appender the appender
+   * @param kind which of the {@code ZU_TEMPORAL_} kinds it is
+   * @param count how many of the unit that kind implies
+   */
+  void appendTemporal(long appender, int kind, long count);
+
+  /**
+   * Ends the row being written, which is what makes it a row.
+   *
+   * @param appender the appender
+   */
+  void appendEndRow(long appender);
+
+  /**
+   * Writes what is buffered.
+   *
+   * @param appender the appender
+   */
+  void appenderFlush(long appender);
+
+  /**
+   * Rows ended and not yet written.
+   *
+   * @param appender the appender
+   * @return the count
+   */
+  long appenderBuffered(long appender);
+
+  /**
+   * Rows written across every flush.
+   *
+   * @param appender the appender
+   * @return the count
+   */
+  long appenderCommitted(long appender);
+
+  /**
+   * How many values a row carries.
+   *
+   * @param appender the appender
+   * @return the count
+   */
+  int appenderColumns(long appender);
+
+  /**
+   * What one of those values is called.
+   *
+   * @param appender the appender
+   * @param col the column, counting from zero
+   * @return the name, or null out of range
+   */
+  String appenderColumnName(long appender, int col);
+
+  /**
+   * Throws away what is buffered. Rows an earlier flush wrote are written and
+   * this does not reach them.
+   *
+   * @param appender the appender
+   * @return how many rows were thrown away
+   */
+  long appenderDiscard(long appender);
+
+  /**
+   * Flushes what is left and spends the appender.
+   *
+   * @param appender the appender
+   * @return how many rows it wrote in all
+   */
+  long appenderClose(long appender);
+
+  /**
+   * Releases an appender. Writes what is still buffered, and cannot say
+   * whether that worked, which is what {@link #appenderClose(long)} is for.
+   *
+   * @param appender the appender
+   */
+  void appenderFree(long appender);
 }

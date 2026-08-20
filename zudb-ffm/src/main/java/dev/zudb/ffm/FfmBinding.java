@@ -15,12 +15,15 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import dev.zudb.Diagnostic;
 import dev.zudb.Status;
 import dev.zudb.spi.ZuBinding;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.DoubleBuffer;
+import java.nio.IntBuffer;
 import java.nio.LongBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * The C ABI, called through the Foreign Function and Memory API.
@@ -642,6 +645,414 @@ final class FfmBinding implements ZuBinding {
       return utf8(sl.get(ADDRESS, OUT).address(), sl.get(JAVA_LONG, LEN));
     } catch (Throwable t) {
       throw fail("zu_value_field", t);
+    }
+  }
+
+  // ---- bulk load ----
+
+  @Override
+  public long loaderCreate(String path) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    MemorySegment p = s.utf8(path);
+    clear(sl);
+    try {
+      int st =
+          (int) abi.loaderCreate.invokeExact(p, p.byteSize(), sl.asSlice(OUT, 8), sl.asSlice(ERR, 8));
+      check("zu_loader_create", st, sl);
+      return sl.get(ADDRESS, OUT).address();
+    } catch (Throwable t) {
+      throw fail("zu_loader_create", t);
+    }
+  }
+
+  @Override
+  public void loaderTable(long loader, String nodes, String edges, long rows) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    MemorySegment n = s.utf8(nodes);
+    MemorySegment e = edges == null ? MemorySegment.NULL : s.utf8(edges);
+    long elen = edges == null ? 0 : e.byteSize();
+    clear(sl);
+    try {
+      int st =
+          (int)
+              abi.loaderTable.invokeExact(
+                  ptr(loader), n, n.byteSize(), e, elen, rows, sl.asSlice(ERR, 8));
+      check("zu_loader_table", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_loader_table", t);
+    }
+  }
+
+  @Override
+  public void loaderEdges(long loader, IntBuffer from, IntBuffer to) {
+    int count = from.remaining();
+    if (to.remaining() != count) {
+      throw Diagnostic.misuse(
+              Status.MISUSE,
+              "an edge starts somewhere and ends somewhere, and there are "
+                  + count
+                  + " starts against "
+                  + to.remaining()
+                  + " ends")
+          .toException();
+    }
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    clear(sl);
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment f = pass(from, arena);
+      MemorySegment t = pass(to, arena);
+      int st = (int) abi.loaderEdges.invokeExact(ptr(loader), f, t, (long) count, sl.asSlice(ERR, 8));
+      check("zu_loader_edges", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_loader_edges", t);
+    }
+  }
+
+  @Override
+  public void loaderColumnLongs(long loader, String name, LongBuffer values) {
+    loaderColumn(abi.loaderColI64, "zu_loader_col_i64", loader, name, values.remaining(),
+        arena -> pass(values, arena));
+  }
+
+  @Override
+  public void loaderColumnDoubles(long loader, String name, DoubleBuffer values) {
+    loaderColumn(abi.loaderColF64, "zu_loader_col_f64", loader, name, values.remaining(),
+        arena -> pass(values, arena));
+  }
+
+  @Override
+  public void loaderColumnBooleans(long loader, String name, IntBuffer values) {
+    loaderColumn(abi.loaderColBool, "zu_loader_col_bool", loader, name, values.remaining(),
+        arena -> pass(values, arena));
+  }
+
+  @Override
+  public void loaderColumnStrings(long loader, String name, List<String> values) {
+    int count = values.size();
+    Scratch scratch = Scratch.get();
+    MemorySegment sl = scratch.slots();
+    clear(sl);
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment n = utf8(arena, name);
+      MemorySegment pointers = arena.allocate(ADDRESS, count);
+      MemorySegment lengths = arena.allocate(Abi.SIZE_T, count);
+      for (int i = 0; i < count; i++) {
+        String v = values.get(i);
+        if (v == null) {
+          throw Diagnostic.misuse(
+                  Status.MISUSE,
+                  "row " + i + " of column " + name + " is no value at all, and a loaded column"
+                      + " holds a value a row")
+              .toException();
+        }
+        MemorySegment bytes = utf8(arena, v);
+        pointers.setAtIndex(ADDRESS, i, bytes);
+        size(lengths, i, bytes.byteSize());
+      }
+      int st =
+          (int)
+              abi.loaderColStr.invokeExact(
+                  ptr(loader), n, n.byteSize(), pointers, lengths, (long) count, sl.asSlice(ERR, 8));
+      check("zu_loader_col_str", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_loader_col_str", t);
+    }
+  }
+
+  @Override
+  public void loaderColumnTemporal(long loader, String name, int kind, LongBuffer values) {
+    int count = values.remaining();
+    Scratch scratch = Scratch.get();
+    MemorySegment sl = scratch.slots();
+    clear(sl);
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment n = utf8(arena, name);
+      MemorySegment v = pass(values, arena);
+      int st =
+          (int)
+              abi.loaderColTemporal.invokeExact(
+                  ptr(loader), n, n.byteSize(), kind, v, (long) count, sl.asSlice(ERR, 8));
+      check("zu_loader_col_temporal", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_loader_col_temporal", t);
+    }
+  }
+
+  @Override
+  public void loaderFinish(long loader) {
+    endTransaction(abi.loaderFinish, "zu_loader_finish", loader);
+  }
+
+  @Override
+  public void loaderFree(long loader) {
+    try {
+      abi.loaderFree.invokeExact(ptr(loader));
+    } catch (Throwable t) {
+      throw fail("zu_loader_free", t);
+    }
+  }
+
+  // ---- appending ----
+
+  @Override
+  public long appenderOpen(long conn, String table) {
+    return run(abi.appenderOpen, "zu_appender_open", conn, table);
+  }
+
+  @Override
+  public void appendBoolean(long appender, boolean value) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    clear(sl);
+    try {
+      int st = (int) abi.appendBool.invokeExact(ptr(appender), value ? 1 : 0, sl.asSlice(ERR, 8));
+      check("zu_append_bool", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_append_bool", t);
+    }
+  }
+
+  @Override
+  public void appendLong(long appender, long value) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    clear(sl);
+    try {
+      int st = (int) abi.appendI64.invokeExact(ptr(appender), value, sl.asSlice(ERR, 8));
+      check("zu_append_i64", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_append_i64", t);
+    }
+  }
+
+  @Override
+  public void appendDouble(long appender, double value) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    clear(sl);
+    try {
+      int st = (int) abi.appendF64.invokeExact(ptr(appender), value, sl.asSlice(ERR, 8));
+      check("zu_append_f64", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_append_f64", t);
+    }
+  }
+
+  @Override
+  public void appendString(long appender, String value) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    MemorySegment v = s.utf8(value);
+    clear(sl);
+    try {
+      int st =
+          (int) abi.appendStr.invokeExact(ptr(appender), v, v.byteSize(), sl.asSlice(ERR, 8));
+      check("zu_append_str", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_append_str", t);
+    }
+  }
+
+  @Override
+  public void appendBytes(long appender, ByteBuffer value) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    clear(sl);
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment v = pass(value, arena);
+      int st = (int) abi.appendBytes.invokeExact(ptr(appender), v, v.byteSize(), sl.asSlice(ERR, 8));
+      check("zu_append_bytes", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_append_bytes", t);
+    }
+  }
+
+  @Override
+  public void appendTemporal(long appender, int kind, long count) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    clear(sl);
+    try {
+      int st = (int) abi.appendTemporal.invokeExact(ptr(appender), kind, count, sl.asSlice(ERR, 8));
+      check("zu_append_temporal", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_append_temporal", t);
+    }
+  }
+
+  @Override
+  public void appendEndRow(long appender) {
+    endTransaction(abi.appendEndRow, "zu_append_end_row", appender);
+  }
+
+  @Override
+  public void appenderFlush(long appender) {
+    endTransaction(abi.appenderFlush, "zu_appender_flush", appender);
+  }
+
+  @Override
+  public long appenderBuffered(long appender) {
+    return counter(abi.appenderBuffered, "zu_appender_buffered", appender);
+  }
+
+  @Override
+  public long appenderCommitted(long appender) {
+    return counter(abi.appenderCommitted, "zu_appender_committed", appender);
+  }
+
+  @Override
+  public int appenderColumns(long appender) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    try {
+      int st = (int) abi.appenderCols.invokeExact(ptr(appender), sl.asSlice(OUT, 8));
+      check("zu_appender_cols", st, null);
+      return sl.get(JAVA_INT, OUT);
+    } catch (Throwable t) {
+      throw fail("zu_appender_cols", t);
+    }
+  }
+
+  @Override
+  public String appenderColumnName(long appender, int col) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    try {
+      MemorySegment out =
+          (MemorySegment) abi.appenderColName.invokeExact(ptr(appender), col, sl.asSlice(LEN, 8));
+      return utf8(out.address(), sl.get(JAVA_LONG, LEN));
+    } catch (Throwable t) {
+      throw fail("zu_appender_col_name", t);
+    }
+  }
+
+  @Override
+  public long appenderDiscard(long appender) {
+    return counter(abi.appenderDiscard, "zu_appender_discard", appender);
+  }
+
+  @Override
+  public long appenderClose(long appender) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    clear(sl);
+    try {
+      int st =
+          (int) abi.appenderClose.invokeExact(ptr(appender), sl.asSlice(OUT, 8), sl.asSlice(ERR, 8));
+      check("zu_appender_close", st, sl);
+      return sl.get(JAVA_LONG, OUT);
+    } catch (Throwable t) {
+      throw fail("zu_appender_close", t);
+    }
+  }
+
+  @Override
+  public void appenderFree(long appender) {
+    try {
+      abi.appenderFree.invokeExact(ptr(appender));
+    } catch (Throwable t) {
+      throw fail("zu_appender_free", t);
+    }
+  }
+
+  /** One of the {@code (handle, uint64_t *out)} calls that cannot fail with an error. */
+  private long counter(java.lang.invoke.MethodHandle mh, String what, long handle) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    try {
+      int st = (int) mh.invokeExact(ptr(handle), sl.asSlice(OUT, 8));
+      check(what, st, null);
+      return sl.get(JAVA_LONG, OUT);
+    } catch (Throwable t) {
+      throw fail(what, t);
+    }
+  }
+
+  /** The shape every one-array loader column call has. */
+  private void loaderColumn(
+      java.lang.invoke.MethodHandle mh,
+      String what,
+      long loader,
+      String name,
+      int count,
+      java.util.function.Function<Arena, MemorySegment> values) {
+    Scratch scratch = Scratch.get();
+    MemorySegment sl = scratch.slots();
+    clear(sl);
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment n = utf8(arena, name);
+      MemorySegment v = values.apply(arena);
+      int st =
+          (int) mh.invokeExact(ptr(loader), n, n.byteSize(), v, (long) count, sl.asSlice(ERR, 8));
+      check(what, st, sl);
+    } catch (Throwable t) {
+      throw fail(what, t);
+    }
+  }
+
+  /**
+   * A buffer where a native function can read it.
+   *
+   * <p>A direct buffer already is that, and {@link MemorySegment#ofBuffer}
+   * addresses exactly the region between its position and its limit, so nothing
+   * is copied and a load of a hundred million values costs the call. A heap
+   * buffer is memory nothing outside this JVM can address and has to be copied
+   * off-heap first. That is the difference between passing a {@code long[]} and
+   * passing a direct {@code LongBuffer}, and it is the reason both are offered.
+   */
+  private static MemorySegment pass(LongBuffer values, Arena arena) {
+    if (values.isDirect()) {
+      return MemorySegment.ofBuffer(values);
+    }
+    long[] copy = new long[values.remaining()];
+    values.duplicate().get(copy);
+    return arena.allocateFrom(JAVA_LONG, copy);
+  }
+
+  private static MemorySegment pass(DoubleBuffer values, Arena arena) {
+    if (values.isDirect()) {
+      return MemorySegment.ofBuffer(values);
+    }
+    double[] copy = new double[values.remaining()];
+    values.duplicate().get(copy);
+    return arena.allocateFrom(JAVA_DOUBLE, copy);
+  }
+
+  private static MemorySegment pass(IntBuffer values, Arena arena) {
+    if (values.isDirect()) {
+      return MemorySegment.ofBuffer(values);
+    }
+    int[] copy = new int[values.remaining()];
+    values.duplicate().get(copy);
+    return arena.allocateFrom(JAVA_INT, copy);
+  }
+
+  private static MemorySegment pass(ByteBuffer values, Arena arena) {
+    if (values.isDirect()) {
+      return MemorySegment.ofBuffer(values);
+    }
+    byte[] copy = new byte[values.remaining()];
+    values.duplicate().get(copy);
+    return arena.allocateFrom(JAVA_BYTE, copy);
+  }
+
+  /** A string as UTF-8 in an arena, without a terminator, since the length goes beside it. */
+  private static MemorySegment utf8(Arena arena, String s) {
+    byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+    MemorySegment out = arena.allocate(bytes.length);
+    MemorySegment.copy(bytes, 0, out, JAVA_BYTE, 0, bytes.length);
+    return out;
+  }
+
+  /** Writes one {@code size_t}, which is not the same width everywhere. */
+  private static void size(MemorySegment array, long index, long value) {
+    if (Abi.SIZE_T.byteSize() == 8) {
+      array.setAtIndex(JAVA_LONG, index, value);
+    } else {
+      array.setAtIndex(JAVA_INT, index, (int) value);
     }
   }
 
