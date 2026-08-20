@@ -1,3 +1,6 @@
 .DS_Store
 target/
 
+# What scripts/stage-natives.sh downloads. A build of the engine is a
+# thing a release fetches, not a thing a git history carries.
+zudb-native/lib/
