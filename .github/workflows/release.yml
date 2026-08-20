@@ -1,0 +1,110 @@
+# Publishing to Maven Central.
+#
+# A tag is the trigger, and the tag is the version: v0.11.0 publishes
+# 0.11.0. The pom on main stays a snapshot, because a repository whose
+# version has to be bumped in a commit before every release is a
+# repository where the version in a checkout is a lie between the bump
+# and the tag.
+#
+# The engine and this client move on one version number, so the same tag
+# names the engine release the libraries are downloaded from. If that
+# release does not exist yet, this job fails at the staging step rather
+# than publishing a client with no engine in it.
+#
+# Nothing is published without a human: autoPublish is off, so this puts
+# a deployment in the portal and stops. Dropping it there is how a
+# mistake is undone, and there is no undoing a version that went out.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The engine release to take libraries from, for example v0.11.0
+        required: true
+      publish:
+        description: Upload to Central, rather than only building what would be uploaded
+        type: boolean
+        default: false
+
+env:
+  MAVEN_ARGS: -B -ntp
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          # Writes a settings.xml whose `central` server credentials come
+          # from these two, which is the id the publishing plugin is
+          # configured with.
+          server-id: central
+          server-username: CENTRAL_USERNAME
+          server-password: CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+
+      - name: Which version this is
+        run: |
+          set -eu
+          tag="${{ inputs.tag || github.ref_name }}"
+          case "$tag" in
+            v*) ;;
+            *) echo "$tag is not a version tag"; exit 1 ;;
+          esac
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          echo "VERSION=${tag#v}" >> "$GITHUB_ENV"
+
+      # The version lives in the tag rather than in the pom, so it is set
+      # here and never committed.
+      - name: Set the version
+        run: mvn $MAVEN_ARGS versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
+
+      - name: Stage the libraries
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/stage-natives.sh "$TAG"
+
+      # The suite needs an engine, and one of the seven that was just
+      # staged is the platform this runner is, so it runs against the
+      # library that is about to be published rather than against a build
+      # of main. A release that cannot answer a query does not go out.
+      - name: The library that is about to be published answers
+        run: |
+          set -eu
+          echo "ZU_LIBRARY=$PWD/zudb-native/lib/linux-amd64/libzu.so" >> "$GITHUB_ENV"
+
+      - run: mvn $MAVEN_ARGS -Pnatives test
+
+      - name: Build, sign and upload
+        if: github.event_name == 'push' || inputs.publish
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: mvn $MAVEN_ARGS -Prelease,natives -DskipTests deploy
+
+      # What a dispatch with publish off is for: everything up to the
+      # upload, so that a change to the packaging can be checked without
+      # a version being spent on it.
+      - name: Build what would have been uploaded
+        if: github.event_name != 'push' && !inputs.publish
+        run: mvn $MAVEN_ARGS -Prelease,natives -DskipTests -Dgpg.skip=true package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifacts
+          path: |
+            */target/*.jar
+            */target/*.pom
+          if-no-files-found: error

@@ -277,6 +277,8 @@ ZU_LIBRARY=/path/to/libzu.dylib java -jar zudb-bench/target/benchmarks.jar
 
 `ZU_LIBRARY` rather than `-Dzu.library` there, because JMH forks a JVM of its own and a fork inherits the environment rather than the system properties.
 
+A release is a tag. `v0.11.0` builds `0.11.0`, takes its libraries from the engine release of the same name, runs the suite against the very library it is about to publish, and puts one signed deployment of the whole reactor in the Central portal. The version is never committed: a pom that has to be bumped before a release is a pom that is wrong between the bump and the tag. Nothing is published without a human pressing the button, and dropping a deployment in the portal is the only way a mistake is undone, because a version that went out cannot be taken back.
+
 ## Beyond Java
 
 - **Kotlin** (`dev.zudb:zudb-kotlin`, tier 2), a thin extension layer, not a second binding. `use`, `Sequence`, `Flow` with cancellation wired to `interrupt()`, and an inline `transaction { }`.
