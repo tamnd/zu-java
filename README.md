@@ -150,6 +150,21 @@ A million rows, three columns, the same laptop:
 
 The first two lines are the whole point. Half a millisecond to make a million rows queryable against six hundred to write them down, and the three lines after that say the query is not paying for it afterwards.
 
+## Watching a statement, and stopping it
+
+Three ways, and they are the same mechanism seen from different sides. `conn.interrupt()` is safe from another thread and stops whatever is running. `conn.rowsRead()` is safe from another thread too and says how far it has got. And a progress callback is both of those without the thread that would otherwise have to do the polling:
+
+```java
+long deadline = 30_000;
+conn.onProgress(Duration.ofMillis(250), (rows, millis) -> millis < deadline);
+```
+
+Answering false stops the statement exactly as `interrupt()` would, so a timeout is a one line watcher and a progress bar is the same watcher with a repaint in it. The arrangement belongs to the connection and covers every statement after it, so it is set once when the connection is opened rather than around each query.
+
+The callback runs on a thread of the library's, one per statement, never two at once and never after the statement it belongs to has returned. Two things follow. Whatever it touches has to be usable from another thread, so a counter a progress bar reads should be an `AtomicLong` rather than a field. And it must not call back into the library on the connection it is reporting on, because that connection is inside the executor.
+
+This is the other of the two places a pointer to Java code goes the other way. An exception crossing an upcall would take the JVM down, so a watcher that throws is logged and answered as though it had asked for the statement to stop, which is the reading that loses least: a callback that threw is a program that has stopped wanting the answer.
+
 ## How it binds
 
 The Foreign Function and Memory API is the primary path. The downcall handles are written by hand against `zu.h` rather than generated with `jextract`, because the C ABI here is around seventy functions with a stable shape, and a hand-written layer is where the interesting decisions live: which calls are `Linker.Option.critical` because they are short pure accessors, where the out-parameter scratch space comes from so that a query does not allocate, and how a `zu_error` becomes a typed Java exception exactly once. There is no native code in this repository beyond `libzu` itself.

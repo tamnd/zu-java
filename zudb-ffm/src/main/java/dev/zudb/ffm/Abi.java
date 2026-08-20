@@ -68,6 +68,7 @@ final class Abi {
   final MethodHandle connClose;
   final MethodHandle connInterrupt;
   final MethodHandle connRowsRead;
+  final MethodHandle connSetProgress;
   final MethodHandle connInTransaction;
   final MethodHandle begin;
   final MethodHandle commit;
@@ -201,6 +202,8 @@ final class Abi {
     connClose = h("zu_conn_close", FunctionDescriptor.ofVoid(ADDRESS));
     connInterrupt = h("zu_conn_interrupt", FunctionDescriptor.of(JAVA_INT, ADDRESS));
     connRowsRead = h("zu_conn_rows_read", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    connSetProgress = h("zu_conn_set_progress", FunctionDescriptor.of(
+        JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG));
     connInTransaction = h("zu_conn_in_transaction", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
     begin = h("zu_begin", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, ADDRESS));
     commit = h("zu_commit", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
