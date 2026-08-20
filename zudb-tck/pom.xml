@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The cases every provider owes.
+
+  There are two ways to call libzu from a JVM and a user picks neither,
+  so the two have to behave the same down to the wording of a failure.
+  The only way to know that they do is to run one set of cases against
+  both, which is what this module holds and what zudb-ffm and zudb-jni
+  each run under a suite of their own.
+
+  They are main sources and not tests, because a test source set is not
+  something another module can depend on without a test jar and the
+  trouble a test jar brings on the module path. Nothing here is
+  published: it is a fixture for this repository and would be a strange
+  thing to find on Maven Central.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.zudb</groupId>
+    <artifactId>zudb-parent</artifactId>
+    <version>0.11.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>zudb-tck</artifactId>
+  <name>zu for the JVM: the cases every provider owes</name>
+  <description>One suite, run against both providers, so that neither can quietly differ from the other.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb</artifactId>
+    </dependency>
+    <!-- Compile scope, because these are main sources. The parent
+      declares the same artifact at test scope for every module and the
+      narrower scope here is the one that wins. -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>compile</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>${zu.release.api}</release>
+          <compilerArgs>
+            <!-- The parent's list, less the one lint that has nothing to
+              say here. A test class needs a no-argument constructor and
+              JUnit makes it, so every class in this module would be
+              warned about exposing a default constructor to clients it
+              does not have. -->
+            <arg>-Xlint:all,-requires-automatic,-requires-transitive-automatic,-missing-explicit-ctor</arg>
+            <arg>-Werror</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

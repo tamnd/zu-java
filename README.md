@@ -261,21 +261,22 @@ On the module path the artifact needs `--add-modules dev.zudb.natives`. Nothing 
 
 ## How it binds
 
-The Foreign Function and Memory API is the primary path. The downcall handles are written by hand against `zu.h` rather than generated with `jextract`, because the C ABI here is around seventy functions with a stable shape, and a hand-written layer is where the interesting decisions live: which calls are `Linker.Option.critical` because they are short pure accessors, where the out-parameter scratch space comes from so that a query does not allocate, and how a `zu_error` becomes a typed Java exception exactly once. There is no native code in this repository beyond `libzu` itself.
+The Foreign Function and Memory API is the primary path. The downcall handles are written by hand against `zu.h` rather than generated with `jextract`, because the C ABI here is around seventy functions with a stable shape, and a hand-written layer is where the interesting decisions live: which calls are `Linker.Option.critical` because they are short pure accessors, where the out-parameter scratch space comes from so that a query does not allocate, and how a `zu_error` becomes a typed Java exception exactly once.
 
-An SDK that requires a recent JDK in 2026 excludes a large part of the enterprise ecosystem, so there is a JNI provider too:
+An SDK that requires a recent JDK in 2026 excludes a large part of the enterprise ecosystem, so there is a JNI provider too. It is a small C shim, one build a platform, and it is the only native code in this repository that is ours. Four decisions in it are worth knowing about. It does not link against `libzu`, it opens one at run time and resolves what it calls, so building it needs a C compiler and the JDK headers and nothing else, and a shim built today opens a `libzu` built next year at the same ABI. Every string crosses as a `byte[]` rather than as a `jstring`, because JNI's own conversions speak modified UTF-8 and the engine validates the real thing, so an emoji handed to `NewStringUTF` is a byte sequence the engine refuses. One symbol is exported under the name JNI derives, and it registers the other hundred and two from a static table, because `JNI_OnLoad` cannot find a class that a module path or an application server's class loader holds. And a failure is built on the Java side, so the two providers cannot come to disagree about which exception a GQLSTATUS class names.
+
 
 | Artifact | Baseline | Role |
 |---|---|---|
 | `dev.zudb:zudb` | Java 17 | the API, no native code, no FFM types in the public surface |
 | `dev.zudb:zudb-ffm` | Java 25 | the FFM provider, selected automatically |
-| `dev.zudb:zudb-jni` | Java 17 | the fallback provider |
+| `dev.zudb:zudb-jni` | Java 17 | the JNI provider, with the shim for all seven platforms |
 | `dev.zudb:zudb-arrow` | Java 17 | the Arrow reader, the only artifact that names arrow-java |
 | `dev.zudb:zudb-native` | | the `libzu` binaries, all platforms or one by classifier |
 
-A `ServiceLoader` picks the provider at run time and application code never names one. The FFM artifact targets Java 25 rather than the Java 22 that finalised the API, because 22 has been out of support since September 2024 and shipping against an unsupported release only moves the problem. CI runs 17, 21, 25, and 26.
+A `ServiceLoader` picks the provider at run time and application code never names one, and the same suite of cases runs against both every build, so a difference between the two is a red job rather than something you find. Add `zudb-jni` beside `zudb` on 17 through 21, add `zudb-ffm` on 25 and later, or add both and let the loader pick. The FFM artifact targets Java 25 rather than the Java 22 that finalised the API, because 22 has been out of support since September 2024 and shipping against an unsupported release only moves the problem. CI runs 17, 21, 25, and 26.
 
-One thing to know before your first run: from JDK 24, native access must be granted explicitly. The jars carry `Enable-Native-Access: ALL-UNNAMED` for the class path case, the module path case wants `--enable-native-access=dev.zudb.ffm`, and the provider checks `Module::isNativeAccessEnabled` before the first downcall so that the failure is an exception naming the flag rather than a JVM warning on stderr three frames from any of our code.
+One thing to know before your first run: from JDK 24, native access must be granted explicitly. The jars carry `Enable-Native-Access: ALL-UNNAMED` for the class path case, the module path case wants `--enable-native-access=dev.zudb.ffm` or `--enable-native-access=dev.zudb.jni` for whichever provider is in play, and the FFM provider checks `Module::isNativeAccessEnabled` before the first downcall so that the failure is an exception naming the flag rather than a JVM warning on stderr three frames from any of our code.
 
 ## Errors
 
@@ -298,8 +299,11 @@ The engine has no DDL yet, so there is no `CREATE NODE TABLE` and no statement i
 ## Building
 
 ```sh
+scripts/build-shim.sh
 mvn test -Dzu.library=/path/to/libzu.dylib
 ```
+
+The first line builds the JNI shim for this machine, and it is needed once rather than once a build, since the output lives outside `target/`. It needs a C compiler and a `JAVA_HOME` with headers in it. A checkout with no engine build beside it is still green, because the engine is a different repository and its absence is an ordinary state to be in, but a checkout with no shim in it is red, because the shim is ours and a suite that quietly skipped half its providers would be worth nothing.
 
 The library is looked for in four places, in order: `-Dzu.library`, then `ZU_LIBRARY`, then a `zudb-native` artifact on the class path, then the platform's own search. A named path is first because a bisect and a bug report both start by pointing this at a build, and the platform's search is last because it is the one that can pick up a library nobody in the process chose. `Zu.library()` and `Zu.source()` say which file was loaded and which of the four it came from, and a failure to bind lists what was ruled out on the way. The tests skip rather than fail when no `libzu` is reachable, so a checkout with no engine build beside it is still green.
 

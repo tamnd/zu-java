@@ -33,7 +33,82 @@ env:
   MAVEN_ARGS: -B -ntp
 
 jobs:
+  # The JNI shim, one build a platform, because a C toolchain is a thing
+  # a runner is rather than a thing a runner can be asked for. Seven
+  # jobs of about a minute each, and the release job below collects what
+  # they made into one jar.
+  #
+  # The shim links against nothing: it opens libzu at run time and
+  # resolves what it calls, so none of this needs Rust and none of it
+  # needs the engine.
+  shims:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-amd64
+            runs-on: ubuntu-latest
+          - platform: linux-arm64
+            runs-on: ubuntu-24.04-arm
+          - platform: linux-amd64-musl
+            runs-on: ubuntu-latest
+            container: alpine:3.21
+          - platform: linux-arm64-musl
+            runs-on: ubuntu-24.04-arm
+            container: alpine:3.21
+          - platform: darwin-amd64
+            runs-on: macos-latest
+            # An arm runner building for intel, because the shim is one
+            # file with no dependencies and clang takes an -arch.
+            cflags: -arch x86_64
+          - platform: darwin-arm64
+            runs-on: macos-latest
+          - platform: windows-amd64
+            runs-on: windows-latest
+    runs-on: ${{ matrix.runs-on }}
+    container: ${{ matrix.container }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # The musl builds run in a container that has neither a compiler
+      # nor a JDK, and setup-java has no musl build to give it, so both
+      # come from the distribution's own packages.
+      - name: A compiler and the JDK headers
+        if: matrix.container
+        run: apk add --no-cache bash build-base openjdk21
+
+      - uses: actions/setup-java@v5
+        if: ${{ !matrix.container }}
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build the shim
+        shell: bash
+        env:
+          CFLAGS: ${{ matrix.cflags }}
+        run: |
+          set -eu
+          if [ -n "${{ matrix.container }}" ]; then
+            export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+          fi
+          ./scripts/build-shim.sh
+          # The script names the directory after the machine it ran on,
+          # which is right everywhere but the one cross build, so that
+          # one is put where it belongs.
+          if [ ! -d "zudb-jni/shim/${{ matrix.platform }}" ]; then
+            mv zudb-jni/shim/* "zudb-jni/shim/${{ matrix.platform }}"
+          fi
+          ls -l "zudb-jni/shim/${{ matrix.platform }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shim-${{ matrix.platform }}
+          path: zudb-jni/shim/${{ matrix.platform }}
+          if-no-files-found: error
+
   release:
+    needs: shims
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -75,6 +150,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/stage-natives.sh "$TAG"
 
+      # The seven shims the jobs above built, laid out the way
+      # build-shim.sh would have laid them out if one machine could have
+      # built them all.
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shim-*
+          path: zudb-jni/shim
+
+      - name: The shims are seven and are named right
+        run: |
+          set -eu
+          for dir in zudb-jni/shim/shim-*; do
+            mv "$dir" "zudb-jni/shim/$(basename "$dir" | sed 's/^shim-//')"
+          done
+          chmod -R a+rX zudb-jni/shim
+          ls -lR zudb-jni/shim
+
       # The suite needs an engine, and one of the seven that was just
       # staged is the platform this runner is, so it runs against the
       # library that is about to be published rather than against a build
@@ -84,7 +176,10 @@ jobs:
           set -eu
           echo "ZU_LIBRARY=$PWD/zudb-native/lib/linux-amd64/libzu.so" >> "$GITHUB_ENV"
 
-      - run: mvn $MAVEN_ARGS -Pnatives test
+      # The shim for this runner is one of the seven already downloaded,
+      # so the suite runs against the same file that is about to be
+      # published rather than against one built here.
+      - run: mvn $MAVEN_ARGS -Pnatives,shims test
 
       - name: Build, sign and upload
         if: github.event_name == 'push' || inputs.publish
@@ -92,14 +187,14 @@ jobs:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: mvn $MAVEN_ARGS -Prelease,natives -DskipTests deploy
+        run: mvn $MAVEN_ARGS -Prelease,natives,shims -DskipTests deploy
 
       # What a dispatch with publish off is for: everything up to the
       # upload, so that a change to the packaging can be checked without
       # a version being spent on it.
       - name: Build what would have been uploaded
         if: github.event_name != 'push' && !inputs.publish
-        run: mvn $MAVEN_ARGS -Prelease,natives -DskipTests -Dgpg.skip=true package
+        run: mvn $MAVEN_ARGS -Prelease,natives,shims -DskipTests -Dgpg.skip=true package
 
       - uses: actions/upload-artifact@v4
         with:

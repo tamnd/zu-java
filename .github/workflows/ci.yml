@@ -89,6 +89,12 @@ jobs:
           echo "engine $engine_abi, client $client_abi"
           test "$engine_abi" = "$client_abi"
 
+      # The shim is written against this header and opens a libzu at run
+      # time, so a copy that has drifted compiles clean and then reads a
+      # struct that moved. This is the step that stops it drifting.
+      - name: The vendored header is the engine's header
+        run: diff -u engine/crates/zu-capi/include/zu.h zudb-jni/src/main/c/zu.h
+
       - name: Build libzu
         working-directory: engine
         run: cargo build --release -p zu-capi
@@ -99,6 +105,12 @@ jobs:
           lib="$(ls engine/target/release/libzu.dylib engine/target/release/libzu.so 2>/dev/null | head -1)"
           test -n "$lib"
           echo "ZU_LIBRARY=$GITHUB_WORKSPACE/$lib" >> "$GITHUB_ENV"
+
+      # One platform, this runner's, which is all a runner can build and
+      # all the suite here needs. The other six are built in the release,
+      # on runners of their own.
+      - name: Build the JNI shim
+        run: ./scripts/build-shim.sh
 
       - run: mvn $MAVEN_ARGS test
 
@@ -114,6 +126,66 @@ jobs:
       - run: mvn $MAVEN_ARGS -DskipTests package
 
       - run: java -jar zudb-bench/target/benchmarks.jar -f 1 -wi 1 -i 1 -r 1s -w 1s
+
+  # The JNI provider on the JDKs it exists for. Panama is not there on
+  # 17 or 21, so on those two this is the only way to call the engine at
+  # all, and a client that claims 17 and is only ever tested on 25 is a
+  # client that claims 17.
+  #
+  # It runs the same cases the Panama provider runs, out of the same
+  # artifact, so a difference between the two providers is a red job here
+  # rather than something a user finds.
+  jni:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        java: ["17", "21"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: tamnd/zu
+          path: engine
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      - name: The vendored header is the engine's header
+        run: diff -u engine/crates/zu-capi/include/zu.h zudb-jni/src/main/c/zu.h
+
+      - name: Build libzu
+        working-directory: engine
+        run: cargo build --release -p zu-capi
+
+      - name: Where the library landed
+        run: |
+          set -eu
+          lib="$(ls engine/target/release/libzu.dylib engine/target/release/libzu.so 2>/dev/null | head -1)"
+          test -n "$lib"
+          echo "ZU_LIBRARY=$GITHUB_WORKSPACE/$lib" >> "$GITHUB_ENV"
+
+      - name: Build the JNI shim
+        run: ./scripts/build-shim.sh
+
+      # Named modules rather than the whole reactor, because the Panama
+      # provider compiles to release 25 and this JDK cannot be asked for
+      # that. What is left is exactly what a caller on 17 gets.
+      - run: mvn $MAVEN_ARGS -pl zudb,zudb-tck,zudb-jni -am test
+
+      # Again with every assertion on, including the JDK's own. A wrong
+      # length handed to NewDirectByteBuffer is the difference between a
+      # test that fails and a test that reads somebody else's memory.
+      - run: mvn $MAVEN_ARGS -pl zudb,zudb-tck,zudb-jni -am test -Dzu.test.args="-ea -esa"
 
   # The claim the zudb-native artifact makes is that a user who added a
   # dependency and installed nothing has an engine. Nothing in the test

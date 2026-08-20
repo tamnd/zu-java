@@ -1,4 +1,4 @@
-package dev.zudb.ffm;
+package dev.zudb.tck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
  * The values that have no column to be read into: lists, records and the
  * trees they make.
  */
-class ValueTest {
+public class ValueTest {
 
   private static Database db;
   private static Connection conn;

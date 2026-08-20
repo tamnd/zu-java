@@ -1,4 +1,4 @@
-package dev.zudb.ffm;
+package dev.zudb.tck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /** Preparing once and running many times, which is what a loop wants. */
-class StatementTest {
+public class StatementTest {
 
   private static Database db;
   private static Connection conn;

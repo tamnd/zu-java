@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.zudb.spi.Natives;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -48,7 +49,7 @@ class LibraryTest {
     // Go's spelling, because every library artifact this engine publishes is
     // named after it, and two spellings of one platform is how a client ends
     // up unable to find its own jar.
-    String platform = Library.platform();
+    String platform = Natives.platform();
     assertTrue(
         platform.matches("(darwin|linux|windows|[a-z0-9]+)-(amd64|arm64|[a-z0-9_]+)"),
         platform + " is not a goos-goarch pair");
@@ -60,8 +61,8 @@ class LibraryTest {
     // A shared object built against glibc does not load on musl, so the two
     // are two artifacts. Everywhere else there is one C library and nothing
     // to say about it.
-    String platform = Library.platform();
-    String flavour = Library.flavour();
+    String platform = Natives.platform();
+    String flavour = Natives.flavour();
     if (platform.startsWith("linux-")) {
       assertTrue(
           flavour.equals(platform) || flavour.equals(platform + "-musl"),
@@ -78,7 +79,7 @@ class LibraryTest {
     // a library, deliberately: what is being checked is the copy, and a real
     // one would only make the test slower and platform-specific.
     String resource = "dev/zudb/native/a-platform-that-is-not-one/libzu.stand-in";
-    Path unpacked = Library.unpack(resource);
+    Path unpacked = Natives.unpack(resource, "libzu.stand-in", Library.class);
     assertTrue(unpacked != null, "the stand-in is not on the test classpath");
     assertTrue(Files.isRegularFile(unpacked));
     byte[] want;
@@ -88,7 +89,7 @@ class LibraryTest {
     assertArrayEquals(want, Files.readAllBytes(unpacked));
     // A directory of its own each time, so two callers cannot land on one
     // file and so a copy cannot be made over a library already mapped.
-    Path again = Library.unpack(resource);
+    Path again = Natives.unpack(resource, "libzu.stand-in", Library.class);
     assertNotEquals(unpacked, again);
   }
 
@@ -116,7 +117,7 @@ class LibraryTest {
   void aPlatformWithNoArtifactIsNotAFailure() {
     // The classpath is the third of four places, so nothing there means the
     // search carries on to the platform's own rather than stopping.
-    assertNull(Library.unpack("dev/zudb/native/vax-11-780/libzu.so"));
+    assertNull(Natives.unpack("dev/zudb/native/vax-11-780/libzu.so", "libzu.so", Library.class));
   }
 
   private static void restore(String before) {

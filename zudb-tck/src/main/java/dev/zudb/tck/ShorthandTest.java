@@ -1,4 +1,4 @@
-package dev.zudb.ffm;
+package dev.zudb.tck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
  * objects, and a program reading its settings out of a file should not have to
  * know which of three fields a key lands in.
  */
-class ShorthandTest {
+public class ShorthandTest {
 
   @BeforeAll
   static void engine() {

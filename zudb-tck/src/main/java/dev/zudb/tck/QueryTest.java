@@ -1,4 +1,4 @@
-package dev.zudb.ffm;
+package dev.zudb.tck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -21,7 +21,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /** Reading rows, which is what almost every program does with this client. */
-class QueryTest {
+public class QueryTest {
 
   private static Database db;
   private static Connection conn;

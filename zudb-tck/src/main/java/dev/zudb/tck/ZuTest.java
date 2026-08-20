@@ -1,4 +1,4 @@
-package dev.zudb.ffm;
+package dev.zudb.tck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -9,7 +9,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /** What loaded, and what it says it is. */
-class ZuTest {
+public class ZuTest {
 
   @BeforeAll
   static void engine() {
@@ -17,9 +17,14 @@ class ZuTest {
   }
 
   @Test
-  void theProviderIsTheOneThisArtifactShips() {
-    assertEquals("ffm", Zu.availableProvider().orElseThrow());
-    assertEquals("ffm", Zu.provider());
+  void theProviderIsTheOneThisRunNamed() {
+    // These cases are run once per provider and the run says which, so
+    // this checks that the naming took rather than that a particular one
+    // won. A run in which it did not take would be a run of the same
+    // provider twice, which is the failure this catches.
+    String named = System.getProperty("zu.provider", "ffm");
+    assertEquals(named, Zu.availableProvider().orElseThrow());
+    assertEquals(named, Zu.provider());
   }
 
   @Test

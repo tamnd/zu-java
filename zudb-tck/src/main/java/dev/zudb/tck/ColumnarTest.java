@@ -1,4 +1,4 @@
-package dev.zudb.ffm;
+package dev.zudb.tck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
  * tests are for is that it is the right memory, in the right order, and that
  * it is read-only so that nobody writes into the result by accident.
  */
-class ColumnarTest {
+public class ColumnarTest {
 
   private static Database db;
   private static Connection conn;

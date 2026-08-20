@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The JNI provider, which is the one for JDK 17 through 21.
+
+  It is compiled to 17 like the API is, because being usable on 17 is
+  the entire reason it exists. What makes that possible without a
+  multi-release jar is the same thing that makes the Panama provider a
+  separate artifact: two jars, one dependency, and the service loader
+  picks the one that runs here.
+
+  There is C in this module, and it is the only C in the repository that
+  is ours. It is not compiled by Maven. A C toolchain per platform is
+  not something a Maven build can arrange and not something a user
+  running `mvn test` should be made to have, so scripts/build-shim.sh
+  builds one platform a run and CI runs it on each runner of its matrix.
+  What is under shim/ when this module packages is what goes into the
+  jar, and the shims profile is the check that all seven are there.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.zudb</groupId>
+    <artifactId>zudb-parent</artifactId>
+    <version>0.11.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>zudb-jni</artifactId>
+  <name>zu for the JVM: JNI provider</name>
+  <description>The zu provider over JNI, for JDK 17 and later.</description>
+
+  <properties>
+    <!-- Where build-shim.sh puts what it built. Outside target/ so that
+      a clean does not throw away a compile that needs a toolchain. -->
+    <zu.shim.dir>${project.basedir}/shim</zu.shim.dir>
+    <!-- Empty here and filled in by the profile below, because the flag
+      it holds does not exist before JDK 22 and a JVM handed an option it
+      has never heard of does not start. This module is the one that has
+      to run on 17. -->
+    <zu.jni.access></zu.jni.access>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb</artifactId>
+    </dependency>
+    <!-- The cases every provider owes, run here against this one. -->
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb-tck</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>${project.basedir}/src/main/resources</directory>
+      </resource>
+      <!-- The shims, under the path Shim.ensure looks in, which has a
+        hyphen in a directory name on purpose: it is not a valid Java
+        package, so nothing mistakes it for one and a class loader
+        still finds it. -->
+      <resource>
+        <directory>${zu.shim.dir}</directory>
+        <targetPath>dev/zudb/jni</targetPath>
+      </resource>
+    </resources>
+
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>${zu.release.api}</release>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <!-- JNI is not the restricted method Panama is, so this
+                provider needs no native access grant on the class
+                path. On the module path from JDK 24 a System.load out
+                of a named module is restricted, so the module asks
+                here and a user who put this on the module path passes
+                the enable native access flag naming dev.zudb.jni
+                instead. -->
+              <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <argLine>${zu.jni.access} ${zu.test.args}</argLine>
+          <systemPropertyVariables>
+            <!-- Which provider the shared cases run on. Without it the
+              two would race on priority and one of them would never be
+              tested at all. -->
+            <zu.provider>jni</zu.provider>
+          </systemPropertyVariables>
+          <dependenciesToScan>
+            <dependency>dev.zudb:zudb-tck</dependency>
+          </dependenciesToScan>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- From JDK 24 a System.load out of a named module is restricted
+      and warns, and the warning is on a path to becoming an error. The
+      flag that grants it arrived in 22, so it is asked for from 22 on
+      and not before. The tests run on the module path, so the grant
+      names the module rather than the unnamed one. -->
+    <profile>
+      <id>native-access</id>
+      <activation>
+        <jdk>[22,)</jdk>
+      </activation>
+      <properties>
+        <zu.jni.access>--enable-native-access=dev.zudb.jni</zu.jni.access>
+      </properties>
+    </profile>
+
+    <!-- The check that a release is not a jar with one platform in it.
+      Passed by the job that has downloaded all seven builds, and by
+      nothing else, because a laptop has one toolchain. -->
+    <profile>
+      <id>shims</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-enforcer-plugin</artifactId>
+            <version>${maven.enforcer.plugin.version}</version>
+            <executions>
+              <execution>
+                <id>the shims are built</id>
+                <goals><goal>enforce</goal></goals>
+                <configuration>
+                  <rules>
+                    <requireFilesExist>
+                      <files>
+                        <file>${zu.shim.dir}/linux-amd64/libzudb_jni.so</file>
+                        <file>${zu.shim.dir}/linux-arm64/libzudb_jni.so</file>
+                        <file>${zu.shim.dir}/linux-amd64-musl/libzudb_jni.so</file>
+                        <file>${zu.shim.dir}/linux-arm64-musl/libzudb_jni.so</file>
+                        <file>${zu.shim.dir}/darwin-amd64/libzudb_jni.dylib</file>
+                        <file>${zu.shim.dir}/darwin-arm64/libzudb_jni.dylib</file>
+                        <file>${zu.shim.dir}/windows-amd64/zudb_jni.dll</file>
+                      </files>
+                      <message>
+                        shim/ is not complete: every platform is built by
+                        scripts/build-shim.sh on a runner of its own
+                      </message>
+                    </requireFilesExist>
+                  </rules>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

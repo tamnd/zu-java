@@ -1,4 +1,4 @@
-package dev.zudb.ffm;
+package dev.zudb.tck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
  * <p>The whole point of the error model is that a caller reads fields rather
  * than a message. These tests are what says the fields actually arrive.
  */
-class ErrorTest {
+public class ErrorTest {
 
   private static Database db;
   private static Connection conn;

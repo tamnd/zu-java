@@ -29,6 +29,12 @@
       <groupId>dev.zudb</groupId>
       <artifactId>zudb</artifactId>
     </dependency>
+    <!-- The cases every provider owes, run here against this one. -->
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb-tck</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -69,6 +75,15 @@
                This is the same flag the README tells a user on the module
                path to pass. -->
           <argLine>--enable-native-access=dev.zudb.ffm ${zu.test.args}</argLine>
+          <systemPropertyVariables>
+            <!-- Which provider the shared cases run on. Without it the
+              two would race on priority and one of them would never be
+              tested at all. -->
+            <zu.provider>ffm</zu.provider>
+          </systemPropertyVariables>
+          <dependenciesToScan>
+            <dependency>dev.zudb:zudb-tck</dependency>
+          </dependenciesToScan>
         </configuration>
       </plugin>
     </plugins>
