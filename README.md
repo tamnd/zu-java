@@ -214,6 +214,8 @@ Alpine is a separate row rather than a smaller Linux, because a shared object bu
 
 The library inside the jar is a resource, and no loader on any platform can map one of those, so it is copied to a temp file the first time anything needs it and the copy is what gets loaded. That happens once per JVM.
 
+A GraalVM native image needs no configuration for any of this. Both artifacts carry their own reachability metadata: `zudb-ffm` lists every signature it binds, because an image has no linker in it and each downcall stub is machine code the builder has to be told to write, and `zudb-native` registers the libraries so that one ends up inside the image rather than being looked for on a machine that does not have it. Use a classifier rather than the platform-complete jar, or the image carries seven libraries and uses one. CI builds an image on Linux and macOS every run and makes it answer a query, because a metadata file that is wrong produces an image that builds clean and dies on the first call.
+
 On the module path the artifact needs `--add-modules dev.zudb.natives`. Nothing `requires` it, since there is no code in it to require, and a jar nothing requires is a jar that is never resolved and whose resources are therefore invisible. The search says so itself when it comes up empty on a module path, so the failure names the flag rather than leaving a user to work out why the same classpath run worked.
 
 ## How it binds

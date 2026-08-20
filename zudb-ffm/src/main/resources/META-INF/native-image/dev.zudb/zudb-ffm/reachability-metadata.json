@@ -1,0 +1,49 @@
+{
+  "foreign": {
+    "downcalls": [
+      {"returnType": "int", "parameterTypes": ["pointer", "double", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "int", "long", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "int", "pointer", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "int", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "long", "int", "pointer", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "long", "int", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "long", "long", "pointer", "pointer", "pointer", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "long", "pointer", "pointer", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "long", "pointer", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "long", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "double"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "int", "long", "int"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "int", "pointer", "long", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "int"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "long"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "pointer", "int", "pointer", "long", "long", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "pointer", "long", "int", "int", "long", "int", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "pointer", "long", "int", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "pointer", "long", "long", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "pointer", "long", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "pointer", "long"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "pointer", "pointer", "long", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "pointer", "pointer", "pointer", "long", "long", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "pointer", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "long"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "pointer", "long", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "pointer", "long"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "pointer", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer", "pointer"]},
+      {"returnType": "int", "parameterTypes": ["pointer"], "options": {"critical": {"allowHeapAccess": false}}},
+      {"returnType": "int", "parameterTypes": ["pointer"]},
+      {"returnType": "long", "parameterTypes": ["pointer"], "options": {"critical": {"allowHeapAccess": false}}},
+      {"returnType": "pointer", "parameterTypes": ["pointer", "int", "pointer"]},
+      {"returnType": "pointer", "parameterTypes": ["pointer", "long", "pointer"]},
+      {"returnType": "pointer", "parameterTypes": ["pointer", "pointer"]},
+      {"returnType": "pointer", "parameterTypes": []},
+      {"returnType": "void", "parameterTypes": ["pointer"]}
+    ],
+    "upcalls": [
+      {"returnType": "int", "parameterTypes": ["pointer", "long", "long"]},
+      {"returnType": "void", "parameterTypes": ["pointer"]}
+    ]
+  }
+}

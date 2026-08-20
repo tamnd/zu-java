@@ -185,6 +185,86 @@ jobs:
           env -u ZU_LIBRARY java --enable-native-access=ALL-UNNAMED \
               -cp "$cp$RUNNER_TEMP/user" Main
 
+  # An image has no linker in it. Every downcall stub is machine code
+  # written while the image is built, from a file that says which
+  # signatures to write, and a file that is wrong produces an image that
+  # builds clean and dies on the first query. The unit test checks that
+  # file against what the binding binds; only an image can check that the
+  # file is the file the builder wanted, so one gets built here and run.
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: tamnd/zu
+          path: engine
+
+      - uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "25"
+          distribution: graalvm
+          cache: maven
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      - name: Build libzu
+        working-directory: engine
+        run: cargo build --release -p zu-capi
+
+      - name: Stage the one platform this runner is
+        run: |
+          set -eu
+          case "$RUNNER_OS" in
+            Linux) flavour=linux-amd64; library=libzu.so ;;
+            macOS) flavour=darwin-arm64; library=libzu.dylib ;;
+            *) echo "no row for $RUNNER_OS"; exit 1 ;;
+          esac
+          mkdir -p "zudb-native/lib/$flavour"
+          cp "engine/target/release/$library" "zudb-native/lib/$flavour/$library"
+
+      - run: mvn $MAVEN_ARGS -Pnatives -DskipTests -Denforcer.skip=true package
+
+      # The same program the natives job runs on a JVM, compiled to a
+      # binary instead. No property, no environment variable, and the
+      # library comes out of the image rather than off the disk.
+      - name: An image, and nothing else
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/user"
+          cat > "$RUNNER_TEMP/user/Main.java" <<'EOF'
+          import dev.zudb.Connection;
+          import dev.zudb.Result;
+          import dev.zudb.Zu;
+
+          public class Main {
+              public static void main(String[] args) {
+                  System.out.println("found " + Zu.library() + " through " + Zu.source());
+                  try (Connection conn = Connection.memory();
+                       Result r = conn.query("UNWIND [1, 2, 3] AS n RETURN sum(n) AS total")) {
+                      if (r.row(0).getLong(0) != 6L) {
+                          throw new AssertionError("the image answered something else");
+                      }
+                  }
+                  System.out.println("the engine came out of the image and answered");
+              }
+          }
+          EOF
+          cp=$(ls zudb/target/zudb-*.jar zudb-ffm/target/zudb-ffm-*.jar \
+              zudb-native/target/zudb-native-*.jar | grep -v sources | tr '\n' ':')
+          javac -cp "$cp" -d "$RUNNER_TEMP/user" "$RUNNER_TEMP/user/Main.java"
+          native-image -cp "$cp$RUNNER_TEMP/user" \
+              --no-fallback -o "$RUNNER_TEMP/user/main" Main
+          env -u ZU_LIBRARY "$RUNNER_TEMP/user/main"
+
   # What Maven Central will run over the artifacts, run here instead so
   # that a release is not the first time anyone sees it.
   javadoc:

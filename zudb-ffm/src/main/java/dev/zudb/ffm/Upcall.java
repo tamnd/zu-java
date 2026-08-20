@@ -46,6 +46,7 @@ final class Upcall {
   @SuppressWarnings("restricted")
   static Upcall of(MethodHandle target, FunctionDescriptor descriptor) {
     sweep();
+    Shapes.up(descriptor);
     // Shared rather than confined: the callback arrives on a thread of the
     // library's, and a confined arena would refuse the call it is there to
     // serve.
