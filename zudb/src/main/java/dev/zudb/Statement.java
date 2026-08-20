@@ -37,10 +37,12 @@ public final class Statement implements AutoCloseable {
 
   private final ZuBinding zu;
   private final AtomicLong handle;
+  private final Connection conn;
 
-  Statement(ZuBinding zu, long handle) {
+  Statement(ZuBinding zu, long handle, Connection conn) {
     this.zu = zu;
     this.handle = new AtomicLong(handle);
+    this.conn = conn;
   }
 
   /**
@@ -241,7 +243,7 @@ public final class Statement implements AutoCloseable {
    * @return the result, which the caller closes
    */
   public Result execute() {
-    return new Result(zu, zu.execute(open()));
+    return new Result(zu, zu.execute(open()), conn);
   }
 
   /**

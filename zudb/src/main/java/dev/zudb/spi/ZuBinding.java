@@ -543,6 +543,32 @@ public interface ZuBinding {
    */
   ByteBuffer chunkValid(long result, long chunk, int col, long rows);
 
+  // ---- arrow ----
+
+  /**
+   * Hands a whole result to an Arrow consumer through the C Data Interface,
+   * and spends it.
+   *
+   * <p>Nothing here is a copy. The arrays that cross are the buffers the
+   * engine's executor filled, at the addresses it filled them at, which is
+   * why the result is spent: once the buffers have left there is nothing on
+   * this side to read a second time. The engine writes null back through the
+   * handle on every path, including a refusal, so an implementation must
+   * treat the result as gone whatever this call answered and the API module
+   * must not free it afterwards.
+   *
+   * @param conn the connection the result was produced on, or zero. It is
+   *     what a node column's table name is read out of, and a result whose
+   *     connection has closed still exports, naming tables by their ids
+   * @param result the result, which is gone when this returns
+   * @param rowsPerBatch how many rows a consumer sees at a time, or zero for
+   *     the engine's own
+   * @param stream the address of an {@code ArrowArrayStream} the caller owns
+   *     and has not initialised, written only on success and released through
+   *     its own release callback rather than by anything here
+   */
+  void resultArrow(long conn, long result, long rowsPerBatch, long stream);
+
   // ---- values ----
 
   /**

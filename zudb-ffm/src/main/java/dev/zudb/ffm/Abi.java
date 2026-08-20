@@ -113,6 +113,8 @@ final class Abi {
   final MethodHandle chunkColNodeOffset;
   final MethodHandle chunkColValid;
 
+  final MethodHandle resultArrow;
+
   final MethodHandle loaderCreate;
   final MethodHandle loaderTable;
   final MethodHandle loaderEdges;
@@ -278,6 +280,11 @@ final class Abi {
         h(
             "zu_result_chunk_col_valid",
             FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, JAVA_INT, ADDRESS));
+
+    resultArrow =
+        h(
+            "zu_result_arrow",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, ADDRESS));
 
     loaderCreate =
         h("zu_loader_create", FunctionDescriptor.of(JAVA_INT, ADDRESS, SIZE_T, ADDRESS, ADDRESS));

@@ -66,6 +66,47 @@ What it is worth, summing one integer column of a hundred thousand rows on an M-
 
 A row at a time is a boundary crossing a cell, and a hundred crossings cost about what one borrowed buffer costs. Both surfaces are there because both are the right answer to a different question, but a loop over a million rows should be reading a column.
 
+## Handing the whole result to Arrow
+
+A borrowed column is the answer when your program is the one doing the arithmetic. When it is not, when the answer is going into a dataframe or a Parquet file or across a Flight connection, the thing to hand over is Arrow, and there is a module for that:
+
+```xml
+<dependency>
+  <groupId>dev.zudb</groupId>
+  <artifactId>zudb-arrow</artifactId>
+  <version>${zu.version}</version>
+</dependency>
+```
+
+```java
+try (BufferAllocator allocator = new RootAllocator();
+     ArrowReader reader = Arrow.query(allocator, conn, "MATCH (p:Person) RETURN p.id AS id")) {
+    while (reader.loadNextBatch()) {
+        BigIntVector ids = (BigIntVector) reader.getVectorSchemaRoot().getVector("id");
+        ...
+    }
+}
+```
+
+It is a separate artifact because arrow-java is the largest dependency anything here would have and the one most likely to clash with a version an application already pins. A program that reads rows or columns carries none of it. The rest of the client has no dependencies at all and this is the one line that changes that, so it is a line you write rather than one you inherit.
+
+Nothing on the way out is a copy. The export goes over the Arrow C Data Interface, and the arrays that cross are the buffers the executor already filled, at the addresses it filled them at, so what an export costs is a schema, a stream, and the pointers in it. A million rows and ten thousand cost about the same. Batches are slices of those same arrays, so `Arrow.reader(allocator, result, 1000)` is about what a consumer likes to work in rather than about what gets allocated.
+
+That is also why an export spends its result. Once the buffers have left there is nothing on this side to read a second time, so the `Result` is closed by the call, whatever the call answered, and every buffer a columnar reader borrowed from it before now belongs to the Arrow consumer. Closing it again is the no-op it always was, so try-with-resources around it is still the right shape to write. The reader owns what it was handed and releases it on close, which releases the result: close the reader.
+
+A result the engine had to build across its rows, which is anything with an `ORDER BY`, has no buffers to hand over and is read into buffers of its own on the way out. That is the fallback working rather than the fast path failing, and the only way to tell from the outside is to time it.
+
+The same hundred thousand rows, statement included this time because an export cannot be run twice against one result:
+
+| How | Per row |
+|---|---|
+| the statement on its own | 3.2 ns |
+| `r.longs(0)` and a sum over the buffer | 3.7 ns |
+| `Arrow.query(...)` and a sum over every batch | 5.1 ns |
+| `for (Row row : r) row.getLong(0)` | 79 ns |
+
+Read those against the first line rather than against zero. Summing through Arrow costs about 2 ns a row over the statement, against 0.5 for the borrowed column and 76 for a row at a time, and the gap between the first two is arrow-java building vectors over memory it did not allocate rather than anything crossing the boundary twice.
+
 ## Getting rows in
 
 Two ways, and which one you want follows from whether the database exists yet. There is a third below for the rows that should not go in at all.
@@ -229,6 +270,7 @@ An SDK that requires a recent JDK in 2026 excludes a large part of the enterpris
 | `dev.zudb:zudb` | Java 17 | the API, no native code, no FFM types in the public surface |
 | `dev.zudb:zudb-ffm` | Java 25 | the FFM provider, selected automatically |
 | `dev.zudb:zudb-jni` | Java 17 | the fallback provider |
+| `dev.zudb:zudb-arrow` | Java 17 | the Arrow reader, the only artifact that names arrow-java |
 | `dev.zudb:zudb-native` | | the `libzu` binaries, all platforms or one by classifier |
 
 A `ServiceLoader` picks the provider at run time and application code never names one. The FFM artifact targets Java 25 rather than the Java 22 that finalised the API, because 22 has been out of support since September 2024 and shipping against an unsupported release only moves the problem. CI runs 17, 21, 25, and 26.

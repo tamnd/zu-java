@@ -37,8 +37,21 @@
     </dependency>
     <dependency>
       <groupId>dev.zudb</groupId>
+      <artifactId>zudb-arrow</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>dev.zudb</groupId>
       <artifactId>zudb-ffm</artifactId>
       <version>${project.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+    <!-- An allocator, which arrow-memory-core will not pick for itself.
+         A benchmark is a program rather than a library, so this one is
+         picked here the way an application picks it. -->
+    <dependency>
+      <groupId>org.apache.arrow</groupId>
+      <artifactId>arrow-memory-unsafe</artifactId>
       <scope>runtime</scope>
     </dependency>
     <dependency>
