@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The aggregator. Nothing is built here; what is here is the version
+  every module moves on, the plugin versions every module uses, and the
+  compiler settings that are the same everywhere.
+
+  The engine, the C ABI and this client move on one version number, so
+  the version below is the engine's and is not chosen here.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>dev.zudb</groupId>
+  <artifactId>zudb-parent</artifactId>
+  <version>0.11.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>zu for the JVM</name>
+  <description>The Java client for zu, an embedded property-graph database.</description>
+  <url>https://github.com/tamnd/zu-java</url>
+
+  <licenses>
+    <license>
+      <name>Apache-2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>tamnd</id>
+      <name>Tam Nguyen Duc</name>
+      <url>https://github.com/tamnd</url>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/tamnd/zu-java.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/tamnd/zu-java.git</developerConnection>
+    <url>https://github.com/tamnd/zu-java</url>
+  </scm>
+
+  <issueManagement>
+    <system>GitHub</system>
+    <url>https://github.com/tamnd/zu-java/issues</url>
+  </issueManagement>
+
+  <modules>
+    <module>zudb</module>
+    <module>zudb-ffm</module>
+    <module>zudb-bench</module>
+  </modules>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <!-- A fixed timestamp is what makes two builds of one commit byte
+         for byte the same jar, which is the only way a user can check
+         that what is on Maven Central is what is in this repository. -->
+    <project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
+
+    <!-- Where the API is compiled to. 17 is the floor because it is the
+         oldest release still getting updates, and because an SDK that
+         needs a recent JDK in 2026 is an SDK a large part of the
+         enterprise ecosystem cannot adopt. -->
+    <zu.release.api>17</zu.release.api>
+    <!-- Where the FFM provider is compiled to. The Foreign Function and
+         Memory API was finalised in 22, but 22 has been end of life
+         since September 2024 and the current long-term release is 25,
+         so 25 is what this targets. -->
+    <zu.release.ffm>25</zu.release.ffm>
+
+    <!-- Anything a run wants to hand the test JVM on top of what the
+         build already passes it, so that CI can add assertions without
+         restating the flags the suite cannot run without. -->
+    <zu.test.args></zu.test.args>
+
+    <junit.version>6.1.3</junit.version>
+    <maven.compiler.plugin.version>3.15.0</maven.compiler.plugin.version>
+    <maven.surefire.plugin.version>3.5.6</maven.surefire.plugin.version>
+    <maven.jar.plugin.version>3.5.1</maven.jar.plugin.version>
+    <maven.source.plugin.version>3.4.0</maven.source.plugin.version>
+    <maven.javadoc.plugin.version>3.12.0</maven.javadoc.plugin.version>
+    <maven.shade.plugin.version>3.6.2</maven.shade.plugin.version>
+    <maven.gpg.plugin.version>3.2.8</maven.gpg.plugin.version>
+    <central.publishing.plugin.version>0.11.0</central.publishing.plugin.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>dev.zudb</groupId>
+        <artifactId>zudb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.junit</groupId>
+        <artifactId>junit-bom</artifactId>
+        <version>${junit.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>${maven.compiler.plugin.version}</version>
+          <configuration>
+            <compilerArgs>
+              <!-- Every warning, and a warning is a failure. A binding
+                   that crosses into native memory is the last place to
+                   be relaxed about a rawtype or a missing override. -->
+              <arg>-Xlint:all,-requires-automatic,-requires-transitive-automatic</arg>
+              <arg>-Werror</arg>
+            </compilerArgs>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>${maven.surefire.plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>${maven.jar.plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-source-plugin</artifactId>
+          <version>${maven.source.plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-javadoc-plugin</artifactId>
+          <version>${maven.javadoc.plugin.version}</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+  <profiles>
+    <!-- Sources, javadoc and signatures, which Maven Central requires
+         and a local build has no use for. -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals><goal>jar-no-fork</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals><goal>jar</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

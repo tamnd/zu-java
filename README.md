@@ -8,9 +8,6 @@ import dev.zudb.*;
 try (Database db = Database.open("social.zu1");
      Connection conn = db.connect()) {
 
-    conn.execute("CREATE NODE TABLE Person(id INT64 PRIMARY KEY, name STRING)");
-    conn.loadCsv("Person", Path.of("people.csv"));
-
     try (Result result = conn.query("""
             MATCH (p:Person)-[:Follows]->(f)
             RETURN p.name AS name, count(*) AS n ORDER BY n DESC LIMIT 5
@@ -28,26 +25,98 @@ try (Database db = Database.open("social.zu1");
   <artifactId>zudb</artifactId>
   <version>${zu.version}</version>
 </dependency>
+<dependency>
+  <groupId>dev.zudb</groupId>
+  <artifactId>zudb-ffm</artifactId>
+  <version>${zu.version}</version>
+  <scope>runtime</scope>
+</dependency>
 ```
 
 Text blocks for queries, try-with-resources for every handle, `Stream<Row>` for iteration. Nothing here should surprise a Java developer, which is the whole goal.
 
+## Reading a column without reading a row
+
+A row at a time is the shape most callers want, and it is not the shape that makes an embedded database worth embedding. Every column of a result is also readable as one borrowed buffer over the engine's own memory, with no copy and no per-row call:
+
+```java
+try (Result r = conn.query("MATCH (p:Person) RETURN p.age")) {
+    LongBuffer ages = r.longs(0);
+    ByteBuffer valid = r.valid(0);
+
+    long total = 0;
+    for (int i = 0; i < ages.remaining(); i++) {
+        if (valid.get(i) != 0) {
+            total += ages.get(i);
+        }
+    }
+}
+```
+
+The buffers are read-only views in native byte order, and they are valid until the `Result` closes. A result larger than one chunk is readable a chunk at a time through `r.chunks()`, which is the path that does not need the whole column resident. `java.nio` rather than `MemorySegment` on purpose: a Java 17 caller can name a `LongBuffer`, and both providers can hand one back without copying.
+
+What it is worth, summing one integer column of a hundred thousand rows on an M-series laptop, JDK 25:
+
+| How | Per row |
+|---|---|
+| `r.longs(0)` and a loop over the buffer | 0.45 ns |
+| the same a chunk at a time | 4.1 ns |
+| `for (Row row : r) row.getLong(0)` | 45 ns |
+| `r.stream().mapToLong(...)` | 67 ns |
+
+A row at a time is a boundary crossing a cell, and a hundred crossings cost about what one borrowed buffer costs. Both surfaces are there because both are the right answer to a different question, but a loop over a million rows should be reading a column.
+
 ## How it binds
 
-The Foreign Function and Memory API (Panama) is the primary path, with `jextract` generating the bindings from `zu.h` and `MemorySegment` giving genuinely zero-copy column access. There is no hand-written JNI shim on that path and no native code beyond `libzu` itself.
+The Foreign Function and Memory API is the primary path. The downcall handles are written by hand against `zu.h` rather than generated with `jextract`, because the C ABI here is around seventy functions with a stable shape, and a hand-written layer is where the interesting decisions live: which calls are `Linker.Option.critical` because they are short pure accessors, where the out-parameter scratch space comes from so that a query does not allocate, and how a `zu_error` becomes a typed Java exception exactly once. There is no native code in this repository beyond `libzu` itself.
 
 An SDK that requires a recent JDK in 2026 excludes a large part of the enterprise ecosystem, so there is a JNI provider too:
 
 | Artifact | Baseline | Role |
 |---|---|---|
 | `dev.zudb:zudb` | Java 17 | the API, no native code, no FFM types in the public surface |
-| `dev.zudb:zudb-ffm` | Java 22+ | the FFM provider, selected automatically |
-| `dev.zudb:zudb-jni` | Java 17+ | the fallback provider |
+| `dev.zudb:zudb-ffm` | Java 25 | the FFM provider, selected automatically |
+| `dev.zudb:zudb-jni` | Java 17 | the fallback provider |
 | `dev.zudb:zudb-native-{platform}` | | the `libzu` binaries |
 
-A `ServiceLoader` picks the provider at runtime and logs the choice once at debug level. Application code never names one. Baseline for the modern artifact is **Java 25 LTS**, CI runs 17, 21, 25, and 26.
+A `ServiceLoader` picks the provider at run time and application code never names one. The FFM artifact targets Java 25 rather than the Java 22 that finalised the API, because 22 has been out of support since September 2024 and shipping against an unsupported release only moves the problem. CI runs 17, 21, 25, and 26.
 
-One thing to know before your first run: from JDK 24, native access must be granted explicitly. The jars carry `Enable-Native-Access: ALL-UNNAMED` for the classpath case, the docs give the exact `--enable-native-access=dev.zudb` flag for the module path, and the binding detects the ungranted state at `Database.open` and throws a message containing the flag you need. A JVM warning on stderr three frames from any of our code is not a diagnosis anyone can act on.
+One thing to know before your first run: from JDK 24, native access must be granted explicitly. The jars carry `Enable-Native-Access: ALL-UNNAMED` for the class path case, the module path case wants `--enable-native-access=dev.zudb.ffm`, and the provider checks `Module::isNativeAccessEnabled` before the first downcall so that the failure is an exception naming the flag rather than a JVM warning on stderr three frames from any of our code.
+
+## Errors
+
+Every failure is a `ZuException`, and the subclass is chosen from the GQLSTATUS class rather than from the message: `ZuSyntaxException` for 42, `ZuDataException` for 22, `ZuTransactionException` for 25 and 40, and so on down. The exception carries the whole diagnostic, so a caller reads fields instead of parsing prose:
+
+```java
+catch (ZuSyntaxException e) {
+    e.code();                 // the GQLSTATUS, for example 42001
+    e.condition();            // its standard text
+    e.position();             // line, column and byte offset, when there is one
+    e.caret().ifPresent(System.err::println);
+    e.retryable();            // whether running it again could work
+}
+```
+
+## What works today
+
+The engine has no DDL yet, so there is no `CREATE NODE TABLE` and nothing in this client writes a schema. What runs against a fresh database is the expression and projection surface: `RETURN`, `UNWIND`, parameters, lists, records, and the temporal types. The example at the top of this file describes the intended shape and needs a graph that some other tool built.
+
+## Building
+
+```sh
+mvn test -Dzu.library=/path/to/libzu.dylib
+```
+
+The provider looks at `-Dzu.library`, then `ZU_LIBRARY`, then the platform library path. The tests skip rather than fail when no `libzu` is reachable, so a checkout with no engine build beside it is still green.
+
+The benchmarks are JMH and are not published:
+
+```sh
+mvn package -DskipTests
+ZU_LIBRARY=/path/to/libzu.dylib java -jar zudb-bench/target/benchmarks.jar
+```
+
+`ZU_LIBRARY` rather than `-Dzu.library` there, because JMH forks a JVM of its own and a fork inherits the environment rather than the system properties.
 
 ## Beyond Java
 

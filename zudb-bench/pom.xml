@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The benchmarks. Nothing here is published, and nothing here is on any
+  caller's class path. It is a module rather than a test source root
+  because JMH wants an annotation processor and a shaded runner, and
+  neither belongs in an artifact somebody depends on.
+
+  Run it with:
+    mvn -pl zudb-bench -am package -DskipTests
+    java -jar zudb-bench/target/benchmarks.jar
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.zudb</groupId>
+    <artifactId>zudb-parent</artifactId>
+    <version>0.11.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>zudb-bench</artifactId>
+  <name>zu for the JVM: benchmarks</name>
+  <description>JMH benchmarks for the zu JVM client. Not published.</description>
+
+  <properties>
+    <jmh.version>1.37</jmh.version>
+    <maven.deploy.skip>true</maven.deploy.skip>
+    <maven.install.skip>true</maven.install.skip>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb-ffm</artifactId>
+      <version>${project.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.openjdk.jmh</groupId>
+      <artifactId>jmh-core</artifactId>
+      <version>${jmh.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.openjdk.jmh</groupId>
+      <artifactId>jmh-generator-annprocess</artifactId>
+      <version>${jmh.version}</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>benchmarks</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>${zu.release.ffm}</release>
+          <!-- From JDK 23 a compiler does not run an annotation
+               processor it merely found on the class path, and JMH is
+               nothing but an annotation processor. Without this the jar
+               builds and then says it has no benchmarks in it. -->
+          <proc>full</proc>
+          <!-- JMH's generated code is not held to the settings the rest
+               of the build is held to, and a warning out of a generated
+               class is not a warning anybody can act on. -->
+          <compilerArgs combine.self="override"/>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>${maven.shade.plugin.version}</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <!-- Nothing depends on this jar, so the rewritten pom is a
+                   file in the working tree and nothing else. -->
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>org.openjdk.jmh.Main</mainClass>
+                  <manifestEntries>
+                    <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+                  </manifestEntries>
+                </transformer>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <!-- A module descriptor from each of four jars in one
+                       jar is not a thing the JVM can read, and the
+                       benchmark runner is a class path program. -->
+                  <excludes>
+                    <exclude>module-info.class</exclude>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

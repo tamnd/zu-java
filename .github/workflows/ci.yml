@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MAVEN_ARGS: -B -ntp
+
+jobs:
+  # The API artifact is what a caller compiles against, it has no native
+  # code in it, and it is the one thing that has to build on every JDK
+  # this client claims to support. It needs no engine, so it answers in
+  # under a minute and it answers first.
+  api:
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ["17", "21", "25", "26-ea"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      # Only the API module, because the FFM provider compiles to release
+      # 25 and a JDK 17 compiler cannot be asked for that. A caller on 17
+      # gets exactly this artifact and the JNI provider beside it.
+      - run: mvn $MAVEN_ARGS -pl zudb -am test
+
+  # The whole client against the engine at its own HEAD, which is what
+  # makes a red job here mean the binding is wrong about the ABI rather
+  # than that a checked-in copy of something is stale.
+  engine:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        java: ["25", "26-ea"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: tamnd/zu
+          path: engine
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      # ZU_ABI_VERSION is a header macro rather than a symbol, so a
+      # binding with no C compile step has nowhere to read it from and
+      # has to write it down. This is the step that stops the written
+      # down copy from drifting.
+      - name: The ABI this client speaks is the ABI the engine offers
+        run: |
+          set -eu
+          engine_abi="$(sed -n 's/^#define ZU_ABI_VERSION "\(.*\)"$/\1/p' \
+              engine/crates/zu-capi/include/zu.h)"
+          client_abi="$(sed -n 's/.*ABI_VERSION = "\(.*\)";.*/\1/p' \
+              zudb/src/main/java/dev/zudb/Zu.java)"
+          test -n "$engine_abi"
+          test -n "$client_abi"
+          echo "engine $engine_abi, client $client_abi"
+          test "$engine_abi" = "$client_abi"
+
+      - name: Build libzu
+        working-directory: engine
+        run: cargo build --release -p zu-capi
+
+      - name: Where the library landed
+        run: |
+          set -eu
+          lib="$(ls engine/target/release/libzu.dylib engine/target/release/libzu.so 2>/dev/null | head -1)"
+          test -n "$lib"
+          echo "ZU_LIBRARY=$GITHUB_WORKSPACE/$lib" >> "$GITHUB_ENV"
+
+      - run: mvn $MAVEN_ARGS test
+
+      # The suite again with assertions on everywhere, including the ones
+      # in the JDK itself. The bounds checks a MemorySegment does are the
+      # difference between a wrong offset failing and a wrong offset
+      # reading somebody else's memory.
+      - run: mvn $MAVEN_ARGS test -Dzu.test.args="-ea -esa"
+
+      # Not for the numbers, which mean nothing on a shared runner, but
+      # because a benchmark is code that nothing else compiles and
+      # nothing else runs. One iteration is enough to say it still works.
+      - run: mvn $MAVEN_ARGS -DskipTests package
+
+      - run: java -jar zudb-bench/target/benchmarks.jar -f 1 -wi 1 -i 1 -r 1s -w 1s
+
+  # What Maven Central will run over the artifacts, run here instead so
+  # that a release is not the first time anyone sees it.
+  javadoc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - run: mvn $MAVEN_ARGS -P release -DskipTests package
