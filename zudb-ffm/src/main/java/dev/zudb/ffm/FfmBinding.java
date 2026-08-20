@@ -958,6 +958,263 @@ final class FfmBinding implements ZuBinding {
     }
   }
 
+  // ---- frames ----
+
+  @Override
+  public long frameNew(String name, long rows, Runnable release) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    MemorySegment n = s.utf8(name);
+    clear(sl);
+    Release callback = release == null ? null : Release.of(release);
+    MemorySegment stub = callback == null ? MemorySegment.NULL : callback.stub();
+    boolean made = false;
+    try {
+      int st =
+          (int)
+              abi.frameNew.invokeExact(
+                  n,
+                  n.byteSize(),
+                  rows,
+                  MemorySegment.NULL,
+                  stub,
+                  sl.asSlice(OUT, 8),
+                  sl.asSlice(ERR, 8));
+      check("zu_frame_new", st, sl);
+      made = true;
+      return sl.get(ADDRESS, OUT).address();
+    } catch (Throwable t) {
+      throw fail("zu_frame_new", t);
+    } finally {
+      if (!made && callback != null) {
+        // Nothing holds the stub now, and nothing will ever call it.
+        callback.abandon();
+      }
+    }
+  }
+
+  @Override
+  public void frameColumnInts(
+      long frame,
+      String name,
+      java.nio.Buffer values,
+      long count,
+      int bits,
+      boolean signed,
+      long scale,
+      int temporal) {
+    MemorySegment v = lent(values, name);
+    Scratch scratch = Scratch.get();
+    MemorySegment sl = scratch.slots();
+    clear(sl);
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment n = utf8(arena, name);
+      int st =
+          (int)
+              abi.frameColInt.invokeExact(
+                  ptr(frame),
+                  n,
+                  n.byteSize(),
+                  v,
+                  count,
+                  bits,
+                  signed ? 1 : 0,
+                  scale,
+                  temporal,
+                  sl.asSlice(ERR, 8));
+      check("zu_frame_col_int", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_frame_col_int", t);
+    }
+  }
+
+  @Override
+  public void frameColumnFloats(long frame, String name, java.nio.Buffer values, long count,
+      int bits) {
+    MemorySegment v = lent(values, name);
+    Scratch scratch = Scratch.get();
+    MemorySegment sl = scratch.slots();
+    clear(sl);
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment n = utf8(arena, name);
+      int st =
+          (int)
+              abi.frameColFloat.invokeExact(
+                  ptr(frame), n, n.byteSize(), v, count, bits, sl.asSlice(ERR, 8));
+      check("zu_frame_col_float", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_frame_col_float", t);
+    }
+  }
+
+  @Override
+  public void frameColumnBooleans(long frame, String name, java.nio.Buffer bitmap, long count) {
+    MemorySegment b = lent(bitmap, name);
+    Scratch scratch = Scratch.get();
+    MemorySegment sl = scratch.slots();
+    clear(sl);
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment n = utf8(arena, name);
+      int st =
+          (int)
+              abi.frameColBool.invokeExact(
+                  ptr(frame), n, n.byteSize(), b, count, sl.asSlice(ERR, 8));
+      check("zu_frame_col_bool", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_frame_col_bool", t);
+    }
+  }
+
+  @Override
+  public void frameColumnStrings(
+      long frame, String name, java.nio.Buffer offsets, boolean wide, java.nio.Buffer data,
+      long count) {
+    MemorySegment o = lent(offsets, name);
+    MemorySegment d = lent(data, name);
+    Scratch scratch = Scratch.get();
+    MemorySegment sl = scratch.slots();
+    clear(sl);
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment n = utf8(arena, name);
+      int st =
+          (int)
+              abi.frameColStr.invokeExact(
+                  ptr(frame),
+                  n,
+                  n.byteSize(),
+                  o,
+                  wide ? 1 : 0,
+                  d,
+                  d.byteSize(),
+                  count,
+                  sl.asSlice(ERR, 8));
+      check("zu_frame_col_str", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_frame_col_str", t);
+    }
+  }
+
+  @Override
+  public void frameColumnViews(
+      long frame, String name, java.nio.Buffer views, List<java.nio.Buffer> data, long count) {
+    MemorySegment v = lent(views, name);
+    int buffers = data.size();
+    Scratch scratch = Scratch.get();
+    MemorySegment sl = scratch.slots();
+    clear(sl);
+    try (Arena arena = Arena.ofConfined()) {
+      MemorySegment n = utf8(arena, name);
+      MemorySegment pointers = arena.allocate(ADDRESS, Math.max(buffers, 1));
+      MemorySegment lengths = arena.allocate(Abi.SIZE_T, Math.max(buffers, 1));
+      for (int i = 0; i < buffers; i++) {
+        MemorySegment one = lent(data.get(i), name);
+        pointers.setAtIndex(ADDRESS, i, one);
+        size(lengths, i, one.byteSize());
+      }
+      int st =
+          (int)
+              abi.frameColView.invokeExact(
+                  ptr(frame),
+                  n,
+                  n.byteSize(),
+                  v,
+                  pointers,
+                  lengths,
+                  (long) buffers,
+                  count,
+                  sl.asSlice(ERR, 8));
+      check("zu_frame_col_view", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_frame_col_view", t);
+    }
+  }
+
+  @Override
+  public void frameFree(long frame) {
+    try {
+      abi.frameFree.invokeExact(ptr(frame));
+    } catch (Throwable t) {
+      throw fail("zu_frame_free", t);
+    }
+  }
+
+  @Override
+  public void connRegister(long conn, long frame) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    clear(sl);
+    try {
+      int st = (int) abi.connRegister.invokeExact(ptr(conn), ptr(frame), sl.asSlice(ERR, 8));
+      check("zu_conn_register", st, sl);
+    } catch (Throwable t) {
+      throw fail("zu_conn_register", t);
+    }
+  }
+
+  @Override
+  public boolean connUnregister(long conn, String name) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    MemorySegment n = s.utf8(name);
+    clear(sl);
+    try {
+      int st =
+          (int)
+              abi.connUnregister.invokeExact(
+                  ptr(conn), n, n.byteSize(), sl.asSlice(OUT, 4), sl.asSlice(ERR, 8));
+      check("zu_conn_unregister", st, sl);
+      return sl.get(JAVA_INT, OUT) != 0;
+    } catch (Throwable t) {
+      throw fail("zu_conn_unregister", t);
+    }
+  }
+
+  @Override
+  public long connRegisteredCount(long conn) {
+    return counter(abi.connRegisteredCount, "zu_conn_registered_count", conn);
+  }
+
+  @Override
+  public String connRegisteredName(long conn, long index) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    try {
+      MemorySegment out =
+          (MemorySegment) abi.connRegisteredName.invokeExact(ptr(conn), index, sl.asSlice(LEN, 8));
+      return utf8(out.address(), sl.get(JAVA_LONG, LEN));
+    } catch (Throwable t) {
+      throw fail("zu_conn_registered_name", t);
+    }
+  }
+
+  /**
+   * A buffer the engine may keep rather than read once.
+   *
+   * <p>This is the one place a copy is refused instead of made. Everywhere
+   * else a heap buffer costs a memcpy and nothing else, because the call reads
+   * it and is done. A frame keeps the pointer for as long as it is registered,
+   * and a heap buffer has no address anything outside the JVM can keep, so a
+   * copy here would mean the engine reading a copy for the rest of the frame's
+   * life. That is a frame that is not a frame, and quietly making one is worse
+   * than saying so.
+   */
+  private static MemorySegment lent(java.nio.Buffer buffer, String name) {
+    if (buffer == null) {
+      throw Diagnostic.misuse(Status.MISUSE, "column " + name + " of a frame has no buffer")
+          .toException();
+    }
+    if (!buffer.isDirect()) {
+      throw Diagnostic.misuse(
+              Status.MISUSE,
+              "column "
+                  + name
+                  + " of a frame is on the heap, and a frame is read where it lies rather than"
+                  + " copied, so it wants a buffer from ByteBuffer.allocateDirect")
+          .toException();
+    }
+    return MemorySegment.ofBuffer(buffer);
+  }
+
   /** One of the {@code (handle, uint64_t *out)} calls that cannot fail with an error. */
   private long counter(java.lang.invoke.MethodHandle mh, String what, long handle) {
     Scratch s = Scratch.get();

@@ -135,6 +135,18 @@ final class Abi {
   final MethodHandle appenderClose;
   final MethodHandle appenderFree;
 
+  final MethodHandle frameNew;
+  final MethodHandle frameColInt;
+  final MethodHandle frameColFloat;
+  final MethodHandle frameColBool;
+  final MethodHandle frameColStr;
+  final MethodHandle frameColView;
+  final MethodHandle frameFree;
+  final MethodHandle connRegister;
+  final MethodHandle connUnregister;
+  final MethodHandle connRegisteredCount;
+  final MethodHandle connRegisteredName;
+
   final MethodHandle valueType;
   final MethodHandle valueBool;
   final MethodHandle valueI64;
@@ -315,6 +327,74 @@ final class Abi {
     appenderClose =
         h("zu_appender_close", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
     appenderFree = h("zu_appender_free", FunctionDescriptor.ofVoid(ADDRESS));
+
+    frameNew =
+        h(
+            "zu_frame_new",
+            FunctionDescriptor.of(
+                JAVA_INT, ADDRESS, SIZE_T, JAVA_LONG, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
+    frameColInt =
+        h(
+            "zu_frame_col_int",
+            FunctionDescriptor.of(
+                JAVA_INT,
+                ADDRESS,
+                ADDRESS,
+                SIZE_T,
+                ADDRESS,
+                JAVA_LONG,
+                JAVA_INT,
+                JAVA_INT,
+                JAVA_LONG,
+                JAVA_INT,
+                ADDRESS));
+    frameColFloat =
+        h(
+            "zu_frame_col_float",
+            FunctionDescriptor.of(
+                JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS, JAVA_LONG, JAVA_INT, ADDRESS));
+    frameColBool =
+        h(
+            "zu_frame_col_bool",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS, JAVA_LONG, ADDRESS));
+    frameColStr =
+        h(
+            "zu_frame_col_str",
+            FunctionDescriptor.of(
+                JAVA_INT,
+                ADDRESS,
+                ADDRESS,
+                SIZE_T,
+                ADDRESS,
+                JAVA_INT,
+                ADDRESS,
+                SIZE_T,
+                JAVA_LONG,
+                ADDRESS));
+    frameColView =
+        h(
+            "zu_frame_col_view",
+            FunctionDescriptor.of(
+                JAVA_INT,
+                ADDRESS,
+                ADDRESS,
+                SIZE_T,
+                ADDRESS,
+                ADDRESS,
+                ADDRESS,
+                SIZE_T,
+                JAVA_LONG,
+                ADDRESS));
+    frameFree = h("zu_frame_free", FunctionDescriptor.ofVoid(ADDRESS));
+    connRegister = h("zu_conn_register", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
+    connUnregister =
+        h(
+            "zu_conn_unregister",
+            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS, ADDRESS));
+    connRegisteredCount =
+        h("zu_conn_registered_count", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    connRegisteredName =
+        h("zu_conn_registered_name", FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_LONG, ADDRESS));
 
     valueType = critical("zu_value_type", FunctionDescriptor.of(JAVA_INT, ADDRESS));
     valueBool = h("zu_value_bool", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
