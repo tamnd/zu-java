@@ -78,6 +78,29 @@ final class FfmBinding implements ZuBinding {
   }
 
   @Override
+  public long[] configSet(
+      long memoryLimit, long threads, boolean readOnly, String key, String value) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    MemorySegment cfg = config(s, memoryLimit, threads, readOnly);
+    MemorySegment k = s.utf8(key);
+    MemorySegment v = s.utf8(value);
+    clear(sl);
+    try {
+      int st =
+          (int)
+              abi.configSet.invokeExact(
+                  cfg, k, k.byteSize(), v, v.byteSize(), sl.asSlice(ERR, 8));
+      check("zu_config_set", st, sl);
+      return new long[] {
+        cfg.get(JAVA_LONG, 8), cfg.get(JAVA_LONG, 16), cfg.get(JAVA_INT, 24)
+      };
+    } catch (Throwable t) {
+      throw fail("zu_config_set", t);
+    }
+  }
+
+  @Override
   public long databaseOpen(String path, long memoryLimit, long threads, boolean readOnly) {
     return openOrCreate(abi.databaseOpen, "zu_database_open", path, memoryLimit, threads, readOnly);
   }
@@ -143,6 +166,30 @@ final class FfmBinding implements ZuBinding {
   @Override
   public long connect(long db) {
     return handle(abi.connect, "zu_connect", db);
+  }
+
+  @Override
+  public long open(String path) {
+    return one(abi.openOne, "zu_open", path);
+  }
+
+  @Override
+  public long create(String path) {
+    return one(abi.createOne, "zu_create", path);
+  }
+
+  @Override
+  public long memory() {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    clear(sl);
+    try {
+      int st = (int) abi.memoryOne.invokeExact(sl.asSlice(OUT, 8), sl.asSlice(ERR, 8));
+      check("zu_memory", st, sl);
+      return sl.get(ADDRESS, OUT).address();
+    } catch (Throwable t) {
+      throw fail("zu_memory", t);
+    }
   }
 
   @Override
@@ -1386,6 +1433,20 @@ final class FfmBinding implements ZuBinding {
     clear(sl);
     try {
       int st = (int) mh.invokeExact(p, p.byteSize(), cfg, sl.asSlice(OUT, 8), sl.asSlice(ERR, 8));
+      check(what, st, sl);
+      return sl.get(ADDRESS, OUT).address();
+    } catch (Throwable t) {
+      throw fail(what, t);
+    }
+  }
+
+  private long one(java.lang.invoke.MethodHandle mh, String what, String path) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    MemorySegment p = s.utf8(path);
+    clear(sl);
+    try {
+      int st = (int) mh.invokeExact(p, p.byteSize(), sl.asSlice(OUT, 8), sl.asSlice(ERR, 8));
       check(what, st, sl);
       return sl.get(ADDRESS, OUT).address();
     } catch (Throwable t) {

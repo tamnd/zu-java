@@ -58,6 +58,28 @@ public interface ZuBinding {
    */
   String version();
 
+  // ---- configuration ----
+
+  /**
+   * Sets one option of a configuration by name, from {@code zu_config_set}.
+   *
+   * <p>The configuration crosses this interface as its three fields rather
+   * than as a handle, because it is a struct the engine reads by value and
+   * there is nothing to keep alive between calls. What this call is for is the
+   * key: the engine owns the list of them and the parsing of the values, so a
+   * binding forwarding a user's option map does not hard-code a list it would
+   * have to keep in step.
+   *
+   * @param memoryLimit the current bytes the caches may hold
+   * @param threads the current query workers
+   * @param readOnly whether writes are currently refused
+   * @param key the option, which the engine refuses and names if it is not one
+   * @param value the option's value, which the engine parses
+   * @return the three fields after the set, in the order they are taken,
+   *     with {@code readOnly} as 1 or 0
+   */
+  long[] configSet(long memoryLimit, long threads, boolean readOnly, String key, String value);
+
   // ---- databases ----
 
   /**
@@ -126,6 +148,34 @@ public interface ZuBinding {
    * @return the connection handle
    */
   long connect(long db);
+
+  /**
+   * Opens an existing database with the default configuration and connects
+   * once, from {@code zu_open}. The database handle is discarded inside the
+   * call, and nothing is lost by that: the connection carries its own file
+   * handle.
+   *
+   * @param path the file
+   * @return the connection handle
+   */
+  long open(String path);
+
+  /**
+   * Creates a database and connects once, from {@code zu_create}. The path
+   * must not exist.
+   *
+   * @param path the file to make
+   * @return the connection handle
+   */
+  long create(String path);
+
+  /**
+   * One scratch graph and one connection on it, from {@code zu_memory}, which
+   * go together when the connection closes.
+   *
+   * @return the connection handle
+   */
+  long memory();
 
   /**
    * A second connection on the database a connection is already on, made

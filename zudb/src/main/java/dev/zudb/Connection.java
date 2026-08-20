@@ -1,6 +1,7 @@
 package dev.zudb;
 
 import dev.zudb.spi.ZuBinding;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +34,79 @@ public final class Connection implements AutoCloseable {
   Connection(ZuBinding zu, long handle) {
     this.zu = zu;
     this.handle = new AtomicLong(handle);
+  }
+
+  /**
+   * Opens an existing database with the default configuration and connects
+   * once, for the program that wants exactly one connection.
+   *
+   * <p>The database handle is made and let go of inside this call, and
+   * nothing is lost by that: a connection carries its own file handle, and a
+   * database holds only the path and the configuration. What is given up is
+   * the second connection, since {@link Database#connect()} is where those
+   * come from. {@link #duplicate()} is the way back to one.
+   *
+   * <pre>{@code
+   * try (Connection conn = Connection.open(Path.of("social.zu1"))) {
+   *     ...
+   * }
+   * }</pre>
+   *
+   * @param path the file
+   * @return the connection, which the caller closes
+   */
+  public static Connection open(Path path) {
+    ZuBinding zu = Zu.binding();
+    return new Connection(zu, zu.open(path.toString()));
+  }
+
+  /**
+   * The same, named by a string.
+   *
+   * @param path the file
+   * @return the connection, which the caller closes
+   */
+  public static Connection open(String path) {
+    return open(Path.of(path));
+  }
+
+  /**
+   * Creates a database and connects once. The path must not exist, for the
+   * reason {@link Database#create(Path)} gives.
+   *
+   * @param path the file to make
+   * @return the connection, which the caller closes
+   */
+  public static Connection create(Path path) {
+    ZuBinding zu = Zu.binding();
+    return new Connection(zu, zu.create(path.toString()));
+  }
+
+  /**
+   * The same, named by a string.
+   *
+   * @param path the file to make
+   * @return the connection, which the caller closes
+   */
+  public static Connection create(String path) {
+    return create(Path.of(path));
+  }
+
+  /**
+   * One scratch graph and one connection on it, which go together when the
+   * connection closes.
+   *
+   * <p>This is the shortest thing in the client that can run a statement, and
+   * it is what a test and a scratch script want: nothing on the disk, nothing
+   * to name, and one thing to close. A second connection on the same graph
+   * comes from {@link #duplicate()}, which is the only way to one, since a
+   * graph in memory has no path to reopen.
+   *
+   * @return the connection, which the caller closes
+   */
+  public static Connection memory() {
+    ZuBinding zu = Zu.binding();
+    return new Connection(zu, zu.memory());
   }
 
   /**

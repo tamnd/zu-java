@@ -165,6 +165,26 @@ The callback runs on a thread of the library's, one per statement, never two at 
 
 This is the other of the two places a pointer to Java code goes the other way. An exception crossing an upcall would take the JVM down, so a watcher that throws is logged and answered as though it had asked for the statement to stop, which is the reading that loses least: a callback that threw is a program that has stopped wanting the answer.
 
+## One connection, and settings that came as text
+
+A `Database` and a `Connection` are two objects because they are two things: the path and the configuration on one side, the caches and the plan cache and the file handle on the other, and a program that queries from four threads wants one of the first and four of the second. A program that wants exactly one connection should not have to say so twice, so it does not have to:
+
+```java
+try (Connection conn = Connection.open("social.zu1")) {
+    ...
+}
+```
+
+`Connection.create(path)` is the same over a file that is not there yet, and `Connection.memory()` is the same over a graph that is nowhere, which is the shortest thing here that runs a statement. All three make the database inside the call and let go of it, which costs nothing, since a connection carries its own file handle and a database holds only the path. What they give up is the second connection, and `conn.duplicate()` is the way back to one.
+
+Settings usually arrive as text, out of a properties file or a connection string or a command line, and a program with a key and a value has no business knowing which field of `Config` they land in:
+
+```java
+Config config = Config.of(Map.of("threads", "1", "memory_limit", "1073741824"));
+```
+
+The keys and the parsing belong to the engine rather than to this client, so a key added to the engine since this client was built works anyway, and a key that never existed is refused with the typo named. A suffix such as `MB` is deliberately not parsed anywhere: its two readings differ by 4.9%, and the place to decide which one a user meant is where the user typed it.
+
 ## How it binds
 
 The Foreign Function and Memory API is the primary path. The downcall handles are written by hand against `zu.h` rather than generated with `jextract`, because the C ABI here is around seventy functions with a stable shape, and a hand-written layer is where the interesting decisions live: which calls are `Linker.Option.critical` because they are short pure accessors, where the out-parameter scratch space comes from so that a query does not allocate, and how a `zu_error` becomes a typed Java exception exactly once. There is no native code in this repository beyond `libzu` itself.

@@ -1,5 +1,8 @@
 package dev.zudb;
 
+import dev.zudb.spi.ZuBinding;
+import java.util.Map;
+
 /**
  * How a database is opened. Zero means the default in every field, so
  * {@link #defaults()} opens the same database as passing nothing.
@@ -77,5 +80,53 @@ public record Config(long memoryLimit, long threads, boolean readOnly) {
    */
   public Config withReadOnly(boolean value) {
     return new Config(memoryLimit, threads, value);
+  }
+
+  /**
+   * The same, with one option set by name.
+   *
+   * <p>This is for the configuration that arrives as text, out of a
+   * properties file or a connection string or a command line, where the
+   * program has a key and a value and no business knowing which of the three
+   * fields above they land in. The engine owns the list of keys and the
+   * parsing of the values, so a key that has been added since this client was
+   * built works anyway and a key that never existed is refused and named.
+   *
+   * <p>The keys are {@code memory_limit}, {@code threads} and
+   * {@code read_only}. The first two take a decimal count and no suffix,
+   * deliberately: the two readings of {@code MB} differ by 4.9%, and the place
+   * to decide which one a user meant is where the user typed it. The third
+   * takes true, false, 1 or 0.
+   *
+   * @param key the option
+   * @param value the option's value
+   * @return a new configuration
+   * @throws ZuException if the key is not one of the engine's, or the value is
+   *     not something that key can be
+   */
+  public Config with(String key, String value) {
+    ZuBinding zu = Zu.binding();
+    long[] set = zu.configSet(memoryLimit, threads, readOnly, key, value);
+    return new Config(set[0], set[1], set[2] != 0);
+  }
+
+  /**
+   * A configuration out of a map of names to values, over the defaults.
+   *
+   * <p>Order is the map's own, which does not matter: each key lands in a
+   * field of its own, so the same map is the same configuration however it is
+   * iterated.
+   *
+   * @param options what to set, which may be empty
+   * @return the configuration
+   * @throws ZuException at the first entry the engine does not recognise,
+   *     naming it
+   */
+  public static Config of(Map<String, String> options) {
+    Config config = DEFAULTS;
+    for (Map.Entry<String, String> option : options.entrySet()) {
+      config = config.with(option.getKey(), option.getValue());
+    }
+    return config;
   }
 }

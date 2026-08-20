@@ -56,6 +56,8 @@ final class Abi {
   final MethodHandle errorExcerpt;
   final MethodHandle errorFree;
 
+  final MethodHandle configSet;
+
   final MethodHandle databaseOpen;
   final MethodHandle databaseCreate;
   final MethodHandle databaseMemory;
@@ -64,6 +66,9 @@ final class Abi {
   final MethodHandle databaseClose;
 
   final MethodHandle connect;
+  final MethodHandle openOne;
+  final MethodHandle createOne;
+  final MethodHandle memoryOne;
   final MethodHandle connDuplicate;
   final MethodHandle connClose;
   final MethodHandle connInterrupt;
@@ -188,6 +193,10 @@ final class Abi {
     errorExcerpt = h("zu_error_excerpt", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
     errorFree = h("zu_error_free", FunctionDescriptor.ofVoid(ADDRESS));
 
+    configSet =
+        h("zu_config_set", FunctionDescriptor.of(
+            JAVA_INT, ADDRESS, ADDRESS, SIZE_T, ADDRESS, SIZE_T, ADDRESS));
+
     databaseOpen =
         h("zu_database_open", FunctionDescriptor.of(JAVA_INT, ADDRESS, SIZE_T, ADDRESS, ADDRESS, ADDRESS));
     databaseCreate =
@@ -198,6 +207,9 @@ final class Abi {
     databaseClose = h("zu_database_close", FunctionDescriptor.ofVoid(ADDRESS));
 
     connect = h("zu_connect", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
+    openOne = h("zu_open", FunctionDescriptor.of(JAVA_INT, ADDRESS, SIZE_T, ADDRESS, ADDRESS));
+    createOne = h("zu_create", FunctionDescriptor.of(JAVA_INT, ADDRESS, SIZE_T, ADDRESS, ADDRESS));
+    memoryOne = h("zu_memory", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
     connDuplicate = h("zu_conn_duplicate", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
     connClose = h("zu_conn_close", FunctionDescriptor.ofVoid(ADDRESS));
     connInterrupt = h("zu_conn_interrupt", FunctionDescriptor.of(JAVA_INT, ADDRESS));
