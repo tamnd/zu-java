@@ -1,0 +1,7 @@
+{
+  "resources": [
+    {"glob": "dev/zudb/native/*/libzu.so"},
+    {"glob": "dev/zudb/native/*/libzu.dylib"},
+    {"glob": "dev/zudb/native/*/zu.dll"}
+  ]
+}

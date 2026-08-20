@@ -434,11 +434,13 @@ final class Abi {
 
   @SuppressWarnings("restricted")
   private MethodHandle h(String name, FunctionDescriptor descriptor) {
+    Shapes.down(descriptor, false);
     return linker.downcallHandle(find(name), descriptor);
   }
 
   @SuppressWarnings("restricted")
   private MethodHandle critical(String name, FunctionDescriptor descriptor) {
+    Shapes.down(descriptor, true);
     return linker.downcallHandle(find(name), descriptor, Linker.Option.critical(false));
   }
 
