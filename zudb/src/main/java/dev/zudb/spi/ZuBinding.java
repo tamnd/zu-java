@@ -1,6 +1,7 @@
 package dev.zudb.spi;
 
 import dev.zudb.Diagnostic;
+import dev.zudb.Progress;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.DoubleBuffer;
@@ -158,6 +159,23 @@ public interface ZuBinding {
    * @return the count
    */
   long connRowsRead(long conn);
+
+  /**
+   * Asks to be called back every so often while a statement runs.
+   *
+   * <p>The arrangement belongs to the connection and covers every statement
+   * after it, and a statement already running keeps the one it started with.
+   * A provider owns whatever it had to build to make the callback reachable
+   * from a thread of the library's, and frees it when the arrangement is
+   * replaced, taken back, or the connection closes.
+   *
+   * @param conn the connection
+   * @param watcher what to call, or null to take the arrangement back
+   * @param intervalMillis how often, which the engine refuses at zero because
+   *     a period of nothing is not a period, and which is ignored for a null
+   *     watcher
+   */
+  void connSetProgress(long conn, Progress watcher, long intervalMillis);
 
   /**
    * Whether a transaction is running, which no statement answers and every

@@ -1,6 +1,7 @@
 package dev.zudb;
 
 import dev.zudb.spi.ZuBinding;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -195,6 +196,43 @@ public final class Connection implements AutoCloseable {
    */
   public long rowsRead() {
     return zu.connRowsRead(open());
+  }
+
+  /**
+   * Asks to be called back every so often while a statement runs, with how
+   * far it has got and whether it should go on.
+   *
+   * <p>This is {@link #rowsRead()} without the thread that would have to do
+   * the polling. The arrangement belongs to the connection and covers every
+   * statement after it, and a statement already running keeps the one it
+   * started with, so this is set once when the connection is opened rather
+   * than around each query.
+   *
+   * <p>A watcher answering false stops the statement exactly as
+   * {@link #interrupt()} would, which is what a timeout is:
+   *
+   * <pre>{@code
+   * long deadline = 30_000;
+   * conn.onProgress(Duration.ofMillis(250), (rows, millis) -> millis < deadline);
+   * }</pre>
+   *
+   * <p>The callback runs on a thread of the library's, so read
+   * {@link Progress} before writing one.
+   *
+   * @param every how often to be called, which the engine refuses at zero
+   *     because a period of nothing is not a period
+   * @param watcher what to call
+   */
+  public void onProgress(Duration every, Progress watcher) {
+    zu.connSetProgress(open(), watcher, every.toMillis());
+  }
+
+  /**
+   * Takes the arrangement back, after which nothing is called and the next
+   * statement runs as it would have.
+   */
+  public void clearProgress() {
+    zu.connSetProgress(open(), null, 0);
   }
 
   /**

@@ -46,8 +46,25 @@ final class FfmBinding implements ZuBinding {
 
   private final Abi abi;
 
+  /**
+   * The progress stub each connection is watching through, which is the one
+   * thing this binding has to remember about a connection.
+   *
+   * <p>It lives here rather than on the {@code Connection} because the stub is
+   * an FFM type and the API module never names one. Keyed by the handle, which
+   * is safe because the entry goes when the connection closes and not a moment
+   * later, so an address the allocator hands out again cannot find an old one.
+   */
+  private final java.util.Map<Long, Watch> watches = new java.util.concurrent.ConcurrentHashMap<>();
+
   FfmBinding(Abi abi) {
     this.abi = abi;
+  }
+
+  private static void spend(Watch watch) {
+    if (watch != null) {
+      watch.spend();
+    }
   }
 
   @Override
@@ -139,6 +156,10 @@ final class FfmBinding implements ZuBinding {
       abi.connClose.invokeExact(ptr(conn));
     } catch (Throwable t) {
       throw fail("zu_conn_close", t);
+    } finally {
+      // The connection is gone, so nothing will call its progress stub again,
+      // and a later connection could be handed this very address.
+      spend(watches.remove(conn));
     }
   }
 
@@ -162,6 +183,44 @@ final class FfmBinding implements ZuBinding {
     } catch (Throwable t) {
       throw fail("zu_conn_rows_read", t);
     }
+  }
+
+  @Override
+  public void connSetProgress(long conn, dev.zudb.Progress watcher, long intervalMillis) {
+    if (watcher == null) {
+      try {
+        int st =
+            (int)
+                abi.connSetProgress.invokeExact(
+                    ptr(conn), MemorySegment.NULL, MemorySegment.NULL, 0L);
+        check("zu_conn_set_progress", st, null);
+      } catch (Throwable t) {
+        throw fail("zu_conn_set_progress", t);
+      }
+      spend(watches.remove(conn));
+      return;
+    }
+    Watch watch = Watch.of(watcher);
+    boolean set = false;
+    try {
+      int st =
+          (int)
+              abi.connSetProgress.invokeExact(
+                  ptr(conn), watch.stub(), MemorySegment.NULL, intervalMillis);
+      check("zu_conn_set_progress", st, null);
+      set = true;
+    } catch (Throwable t) {
+      throw fail("zu_conn_set_progress", t);
+    } finally {
+      if (!set) {
+        watch.spend();
+      }
+    }
+    // Only now, because until the call returned the old arrangement was still
+    // the live one. The connection is not running a statement while it is in
+    // this call, so the callback the previous stub belongs to is not in flight
+    // either.
+    spend(watches.put(conn, watch));
   }
 
   @Override
