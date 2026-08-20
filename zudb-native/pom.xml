@@ -160,4 +160,43 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!-- Central wants a sources jar and a javadoc jar beside every jar
+      it publishes, and has no way of being told that an artifact made
+      of shared libraries has neither. The inherited source and javadoc
+      plugins produce nothing here, because there is no Java, so both
+      are attached by hand and both hold one file saying why they are
+      empty. That is more honest than a jar with nothing in it at all,
+      which reads like a build that went wrong. -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>sources</id>
+                <goals><goal>jar</goal></goals>
+                <configuration>
+                  <classifier>sources</classifier>
+                  <classesDirectory>${project.basedir}/src/empty</classesDirectory>
+                </configuration>
+              </execution>
+              <execution>
+                <id>javadoc</id>
+                <goals><goal>jar</goal></goals>
+                <configuration>
+                  <classifier>javadoc</classifier>
+                  <classesDirectory>${project.basedir}/src/empty</classesDirectory>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

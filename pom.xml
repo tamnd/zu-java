@@ -171,8 +171,47 @@
          and a local build has no use for. -->
     <profile>
       <id>release</id>
+      <properties>
+        <!-- gpg reads a passphrase from a terminal, and a release runs
+             where there is none. Loopback is what makes it read the one
+             the plugin hands it instead of trying to open a tty and
+             hanging until the job is cancelled. -->
+        <gpg.args>--pinentry-mode=loopback</gpg.args>
+      </properties>
       <build>
         <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>${maven.gpg.plugin.version}</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals><goal>sign</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+          <!-- One upload for the whole reactor rather than one per
+               module, so that a release either lands complete or does
+               not land: Central validates a deployment as a unit, and a
+               half-published version is a version nobody can use and
+               nobody can replace. autoPublish is off, so a deployment
+               waits in the portal until a human looks at it. -->
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>${central.publishing.plugin.version}</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>false</autoPublish>
+              <waitUntil>validated</waitUntil>
+              <excludeArtifacts>
+                <excludeArtifact>zudb-bench</excludeArtifact>
+              </excludeArtifacts>
+            </configuration>
+          </plugin>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-source-plugin</artifactId>
