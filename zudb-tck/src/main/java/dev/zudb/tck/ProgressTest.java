@@ -1,4 +1,4 @@
-package dev.zudb.ffm;
+package dev.zudb.tck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -32,7 +32,7 @@ import org.junit.jupiter.api.Test;
  * thousand rows against themselves, which is a third of a second and is not
  * something the planner can fold into a count.
  */
-class ProgressTest {
+public class ProgressTest {
 
   private static final int ROWS = 3_000;
 

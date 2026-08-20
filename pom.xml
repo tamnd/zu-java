@@ -49,7 +49,9 @@
 
   <modules>
     <module>zudb</module>
+    <module>zudb-tck</module>
     <module>zudb-ffm</module>
+    <module>zudb-jni</module>
     <module>zudb-arrow</module>
     <module>zudb-bench</module>
   </modules>
@@ -101,6 +103,11 @@
       <dependency>
         <groupId>dev.zudb</groupId>
         <artifactId>zudb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>dev.zudb</groupId>
+        <artifactId>zudb-tck</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
@@ -223,6 +230,7 @@
               <waitUntil>validated</waitUntil>
               <excludeArtifacts>
                 <excludeArtifact>zudb-bench</excludeArtifact>
+                <excludeArtifact>zudb-tck</excludeArtifact>
               </excludeArtifacts>
             </configuration>
           </plugin>

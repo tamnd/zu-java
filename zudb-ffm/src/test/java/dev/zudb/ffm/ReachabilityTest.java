@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import dev.zudb.Connection;
 import dev.zudb.Frame;
 import dev.zudb.Result;
+import dev.zudb.tck.Libzu;
 import java.lang.foreign.AddressLayout;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemoryLayout;

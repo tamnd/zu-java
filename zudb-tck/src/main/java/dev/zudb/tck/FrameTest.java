@@ -1,4 +1,4 @@
-package dev.zudb.ffm;
+package dev.zudb.tck;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -33,7 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
  * Querying memory the test already holds, without any of it getting into a
  * database.
  */
-class FrameTest {
+public class FrameTest {
 
   @TempDir Path dir;
 

@@ -41,12 +41,20 @@
       <artifactId>arrow-memory-core</artifactId>
     </dependency>
 
-    <!-- The provider and an allocator, both of which an application
-         picks for itself and neither of which this module should force
-         on it. The tests need one of each to run at all. -->
+    <!-- The providers and an allocator, none of which this module
+         should force on an application. The tests need a provider and
+         an allocator to run at all, and they need both providers
+         because handing a stream address to the engine is the one thing
+         the two do differently enough to be worth running twice. -->
     <dependency>
       <groupId>dev.zudb</groupId>
       <artifactId>zudb-ffm</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb-jni</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -96,6 +104,31 @@
           <useModulePath>false</useModulePath>
           <argLine>--enable-native-access=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow ${zu.test.args}</argLine>
         </configuration>
+        <executions>
+          <!-- Once a provider. An Arrow stream is an address the caller
+               writes into and the engine fills, and the two providers
+               get that address by different means, so a reader that
+               works over one is no evidence about the other. -->
+          <execution>
+            <id>default-test</id>
+            <configuration>
+              <systemPropertyVariables>
+                <zu.provider>ffm</zu.provider>
+              </systemPropertyVariables>
+            </configuration>
+          </execution>
+          <execution>
+            <id>the same cases over JNI</id>
+            <phase>test</phase>
+            <goals><goal>test</goal></goals>
+            <configuration>
+              <systemPropertyVariables>
+                <zu.provider>jni</zu.provider>
+              </systemPropertyVariables>
+              <reportsDirectory>${project.build.directory}/surefire-reports-jni</reportsDirectory>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

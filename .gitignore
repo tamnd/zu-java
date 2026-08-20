@@ -4,3 +4,7 @@ target/
 # What scripts/stage-natives.sh downloads. A build of the engine is a
 # thing a release fetches, not a thing a git history carries.
 zudb-native/lib/
+
+# What scripts/build-shim.sh compiles. One platform a run, so a checked
+# in copy would be a copy of whichever machine ran it last.
+zudb-jni/shim/
