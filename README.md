@@ -185,6 +185,37 @@ Config config = Config.of(Map.of("threads", "1", "memory_limit", "1073741824"));
 
 The keys and the parsing belong to the engine rather than to this client, so a key added to the engine since this client was built works anyway, and a key that never existed is refused with the typo named. A suffix such as `MB` is deliberately not parsed anywhere: its two readings differ by 4.9%, and the place to decide which one a user meant is where the user typed it.
 
+## The engine, without installing one
+
+The client is Java and the engine is a shared library, so something has to put a `libzu` on the machine. Adding one more dependency is that something:
+
+```xml
+<dependency>
+  <groupId>dev.zudb</groupId>
+  <artifactId>zudb-native</artifactId>
+  <version>${zu.version}</version>
+  <scope>runtime</scope>
+</dependency>
+```
+
+That artifact carries a build for every platform this client supports and is about twenty megabytes. It is the right one for a program developed on a laptop and deployed to a cluster, and the only one that survives being shaded into an uber-jar. A container image knows exactly what it runs on, so it can name a platform and take about three megabytes instead:
+
+| Classifier | What it holds |
+|---|---|
+| `linux-amd64` | glibc, x86-64 |
+| `linux-arm64` | glibc, aarch64 |
+| `linux-amd64-musl` | musl, x86-64 |
+| `linux-arm64-musl` | musl, aarch64 |
+| `darwin-amd64` | macOS, Intel |
+| `darwin-arm64` | macOS, Apple silicon |
+| `windows-amd64` | Windows, x86-64 |
+
+Alpine is a separate row rather than a smaller Linux, because a shared object built against glibc does not load on musl and the message it fails with talks about an interpreter rather than about a database. Which of the two a JVM gets is decided by looking for musl's own loader on disk, which is the one path the ABI fixes rather than a distribution.
+
+The library inside the jar is a resource, and no loader on any platform can map one of those, so it is copied to a temp file the first time anything needs it and the copy is what gets loaded. That happens once per JVM.
+
+On the module path the artifact needs `--add-modules dev.zudb.natives`. Nothing `requires` it, since there is no code in it to require, and a jar nothing requires is a jar that is never resolved and whose resources are therefore invisible. The search says so itself when it comes up empty on a module path, so the failure names the flag rather than leaving a user to work out why the same classpath run worked.
+
 ## How it binds
 
 The Foreign Function and Memory API is the primary path. The downcall handles are written by hand against `zu.h` rather than generated with `jextract`, because the C ABI here is around seventy functions with a stable shape, and a hand-written layer is where the interesting decisions live: which calls are `Linker.Option.critical` because they are short pure accessors, where the out-parameter scratch space comes from so that a query does not allocate, and how a `zu_error` becomes a typed Java exception exactly once. There is no native code in this repository beyond `libzu` itself.
@@ -196,7 +227,7 @@ An SDK that requires a recent JDK in 2026 excludes a large part of the enterpris
 | `dev.zudb:zudb` | Java 17 | the API, no native code, no FFM types in the public surface |
 | `dev.zudb:zudb-ffm` | Java 25 | the FFM provider, selected automatically |
 | `dev.zudb:zudb-jni` | Java 17 | the fallback provider |
-| `dev.zudb:zudb-native-{platform}` | | the `libzu` binaries |
+| `dev.zudb:zudb-native` | | the `libzu` binaries, all platforms or one by classifier |
 
 A `ServiceLoader` picks the provider at run time and application code never names one. The FFM artifact targets Java 25 rather than the Java 22 that finalised the API, because 22 has been out of support since September 2024 and shipping against an unsupported release only moves the problem. CI runs 17, 21, 25, and 26.
 
@@ -226,7 +257,16 @@ The engine has no DDL yet, so there is no `CREATE NODE TABLE` and no statement i
 mvn test -Dzu.library=/path/to/libzu.dylib
 ```
 
-The provider looks at `-Dzu.library`, then `ZU_LIBRARY`, then the platform library path. The tests skip rather than fail when no `libzu` is reachable, so a checkout with no engine build beside it is still green.
+The library is looked for in four places, in order: `-Dzu.library`, then `ZU_LIBRARY`, then a `zudb-native` artifact on the class path, then the platform's own search. A named path is first because a bisect and a bug report both start by pointing this at a build, and the platform's search is last because it is the one that can pick up a library nobody in the process chose. `Zu.library()` and `Zu.source()` say which file was loaded and which of the four it came from, and a failure to bind lists what was ruled out on the way. The tests skip rather than fail when no `libzu` is reachable, so a checkout with no engine build beside it is still green.
+
+The `zudb-native` module is not built unless it is asked for, because what it packages is downloaded rather than compiled:
+
+```sh
+scripts/stage-natives.sh v0.11.0
+mvn -Pnatives package -DskipTests
+```
+
+The argument is a release tag of the engine, which is fetched with `gh`, or a directory that already holds the archives.
 
 The benchmarks are JMH and are not published:
 

@@ -35,6 +35,9 @@ final class Library {
 
   private Library() {}
 
+  /** The module the library artifacts name themselves, on the module path. */
+  static final String NATIVE_MODULE = "dev.zudb.natives";
+
   /**
    * The library, and how it was found.
    *
@@ -42,8 +45,10 @@ final class Library {
    *     search for it
    * @param source a phrase naming where the path came from, for the log line
    *     and for a failure
+   * @param looked the places tried before this one, in order, so that a
+   *     failure can say what was ruled out rather than only what was left
    */
-  record Found(Path path, String source) {}
+  record Found(Path path, String source, List<String> looked) {}
 
   static Found find() {
     List<String> looked = new ArrayList<>();
@@ -56,7 +61,7 @@ final class Library {
             Diagnostic.misuse(
                 Status.MISUSE, "-D" + PROPERTY + "=" + named + " names no file"));
       }
-      return new Found(p, "-D" + PROPERTY);
+      return new Found(p, "-D" + PROPERTY, looked);
     }
     looked.add("-D" + PROPERTY);
 
@@ -67,20 +72,31 @@ final class Library {
         throw new ZuProgrammingException(
             Diagnostic.misuse(Status.MISUSE, ENVIRONMENT + "=" + env + " names no file"));
       }
-      return new Found(p, ENVIRONMENT);
+      return new Found(p, ENVIRONMENT, looked);
     }
     looked.add(ENVIRONMENT);
 
-    String resource = "dev/zudb/native/" + platform() + "/" + System.mapLibraryName("zu");
+    String flavour = flavour();
+    String resource = "dev/zudb/native/" + flavour + "/" + System.mapLibraryName("zu");
     Path unpacked = unpack(resource);
     if (unpacked != null) {
-      return new Found(unpacked, "the zudb-native-" + platform() + " artifact");
+      return new Found(unpacked, "the zudb-native artifact, " + flavour, looked);
     }
-    looked.add("a zudb-native-" + platform() + " artifact on the classpath");
+    looked.add(
+        "a zudb-native artifact for "
+            + flavour
+            + ", which was not on the classpath"
+            + (Library.class.getModule().isNamed() && ModuleLayer.boot().findModule(
+                    NATIVE_MODULE).isEmpty()
+                ? ". This is a module path, and nothing requires that artifact, so a jar sitting"
+                    + " on the path is not resolved and its library is not visible: add"
+                    + " --add-modules " + NATIVE_MODULE
+                : ""));
 
     // A bare name, which is the platform being asked to search:
     // java.library.path, and then whatever the loader does after that.
-    return new Found(Paths.get(System.mapLibraryName("zu")), "the platform library path");
+    return new Found(
+        Paths.get(System.mapLibraryName("zu")), "the platform library path", looked);
   }
 
   /**
@@ -118,13 +134,46 @@ final class Library {
   }
 
   /**
+   * The same, and which C library on the platform where there are two.
+   *
+   * <p>Alpine is not a smaller Linux, it is a different one: a shared
+   * object built against glibc does not load on musl and says so in a message
+   * about an interpreter rather than about a database. The two builds are two
+   * artifacts everywhere else this engine ships, so they are two here as well,
+   * and the choice is made by looking for musl's own loader, which is the one
+   * file whose path is fixed by the ABI rather than by a distribution.
+   *
+   * <p>Nowhere but Linux has a second answer, so nowhere but Linux is asked.
+   *
+   * @return for example {@code darwin-arm64} or {@code linux-amd64-musl}
+   */
+  static String flavour() {
+    String platform = platform();
+    if (!platform.startsWith("linux-")) {
+      return platform;
+    }
+    return musl() ? platform + "-musl" : platform;
+  }
+
+  /** Whether this is a musl system, by its loader rather than by its name. */
+  private static boolean musl() {
+    for (String loader :
+        new String[] {"/lib/ld-musl-x86_64.so.1", "/lib/ld-musl-aarch64.so.1"}) {
+      if (Files.exists(Paths.get(loader))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Copies a library out of the classpath, because a library inside a jar is
    * not a file and every loader on every platform wants a file.
    *
    * @param resource where it is
    * @return the copy, or null if there is no such resource
    */
-  private static Path unpack(String resource) {
+  static Path unpack(String resource) {
     ClassLoader loader = Library.class.getClassLoader();
     try (InputStream in =
         loader == null

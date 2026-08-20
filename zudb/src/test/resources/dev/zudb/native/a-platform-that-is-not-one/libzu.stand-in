@@ -1,0 +1,2 @@
+not a library, and that is the point: what is checked here is that
+the bytes in the jar are the bytes on the disk afterwards.

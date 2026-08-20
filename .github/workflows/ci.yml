@@ -107,6 +107,84 @@ jobs:
 
       - run: java -jar zudb-bench/target/benchmarks.jar -f 1 -wi 1 -i 1 -r 1s -w 1s
 
+  # The claim the zudb-native artifact makes is that a user who added a
+  # dependency and installed nothing has an engine. Nothing in the test
+  # suite can check that, because the suite is told where the library is
+  # so that it tests the binding rather than the search. So it is
+  # checked here, once, the way a user meets it: a classpath, no
+  # property, no environment variable, and a statement.
+  natives:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: tamnd/zu
+          path: engine
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      - name: Build libzu
+        working-directory: engine
+        run: cargo build --release -p zu-capi
+
+      # One platform rather than seven, because this runner can only
+      # build the one it is, so the rule that every platform is staged
+      # is stood down here and holds where it matters, in the release.
+      - name: Stage the one platform this runner is
+        run: |
+          set -eu
+          case "$RUNNER_OS" in
+            Linux) flavour=linux-amd64; library=libzu.so ;;
+            macOS) flavour=darwin-arm64; library=libzu.dylib ;;
+            *) echo "no row for $RUNNER_OS"; exit 1 ;;
+          esac
+          mkdir -p "zudb-native/lib/$flavour"
+          cp "engine/target/release/$library" "zudb-native/lib/$flavour/$library"
+
+      - run: mvn $MAVEN_ARGS -Pnatives -DskipTests -Denforcer.skip=true package
+
+      - name: A classpath, and nothing else
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/user"
+          cat > "$RUNNER_TEMP/user/Main.java" <<'EOF'
+          import dev.zudb.Connection;
+          import dev.zudb.Result;
+          import dev.zudb.Zu;
+
+          public class Main {
+              public static void main(String[] args) {
+                  System.out.println("found " + Zu.library() + " through " + Zu.source());
+                  try (Connection conn = Connection.memory();
+                       Result r = conn.query("RETURN 1 AS one")) {
+                      if (r.row(0).getLong(0) != 1L) {
+                          throw new AssertionError("the engine answered something else");
+                      }
+                  }
+                  System.out.println("the engine came out of the jar and answered");
+              }
+          }
+          EOF
+          cp=$(ls zudb/target/zudb-*.jar zudb-ffm/target/zudb-ffm-*.jar \
+              zudb-native/target/zudb-native-*.jar | grep -v sources | tr '\n' ':')
+          javac -cp "$cp" -d "$RUNNER_TEMP/user" "$RUNNER_TEMP/user/Main.java"
+          env -u ZU_LIBRARY java --enable-native-access=ALL-UNNAMED \
+              -cp "$cp$RUNNER_TEMP/user" Main
+
   # What Maven Central will run over the artifacts, run here instead so
   # that a release is not the first time anyone sees it.
   javadoc:

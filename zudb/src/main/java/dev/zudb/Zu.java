@@ -86,6 +86,22 @@ public final class Zu {
     return Holder.BOUND.library();
   }
 
+  /**
+   * Which of the four places it was found in, in the words the failure
+   * message would have used.
+   *
+   * <p>This is the second question a bug report has to answer, and the one a
+   * user cannot work out for themselves: a path is a path, and whether it came
+   * from a property somebody set three shells ago or from a jar is the part
+   * that explains why the wrong engine is loaded.
+   *
+   * @return a phrase, for example {@code "the zudb-native artifact,
+   *     darwin-arm64"} or {@code "-Dzu.library"}
+   */
+  public static String source() {
+    return Holder.BOUND.source();
+  }
+
   private static Bound bind() {
     Library.Found found = Library.find();
     String wanted = System.getProperty(PROVIDER_PROPERTY);
@@ -146,6 +162,13 @@ public final class Zu {
               + "API and binds nothing on its own.");
     } else {
       sb.append("Every provider refused. ").append(String.join("; ", refused));
+    }
+    // What was ruled out on the way here, in order, because the last place
+    // searched is the least informative one to be told about: a user whose
+    // artifact is on the module path but unresolved needs to hear that and
+    // not that java.library.path has no libzu in it.
+    if (!found.looked().isEmpty()) {
+      sb.append(" Before that: ").append(String.join("; then ", found.looked())).append(".");
     }
     sb.append(" Set -D").append(Library.PROPERTY).append(" to point at a libzu of your own.");
     return sb.toString();

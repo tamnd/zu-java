@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The library itself, as jars.
+
+  There is no Java here and nothing is compiled. What this module does
+  is take the seven libzu builds CI produced and lay them out under the
+  resource path Library.find looks in, so that a user who added a
+  dependency has an engine and did not have to install one.
+
+  Eight artifacts come out of it. The one with no classifier holds every
+  platform and is about twenty megabytes, which is what a program that
+  is developed on one machine and deployed to another wants, and what a
+  shaded uber-jar has to have. The seven classified ones hold one
+  platform each and are about three, which is what a container image
+  that knows exactly what it runs on wants. Both are built from the same
+  staged directory, so they cannot disagree about what is in them.
+
+  Nothing here is built unless -Pnatives is passed, because what it
+  packages is downloaded rather than compiled and an ordinary build has
+  no business needing it. scripts/stage-natives.sh is what fills lib/.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.zudb</groupId>
+    <artifactId>zudb-parent</artifactId>
+    <version>0.11.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>zudb-native</artifactId>
+  <name>zu for the JVM: the library</name>
+  <description>libzu for every platform the JVM client supports, as a jar.</description>
+
+  <properties>
+    <!-- Where stage-natives.sh puts what it unpacked. Outside target/
+      so that a clean does not throw away a download. -->
+    <zu.natives.dir>${project.basedir}/lib</zu.natives.dir>
+  </properties>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>${zu.natives.dir}</directory>
+        <targetPath>dev/zudb/native</targetPath>
+      </resource>
+    </resources>
+
+    <plugins>
+      <!-- A staged directory that is missing a platform makes a jar
+        that is empty rather than a build that failed, and an empty jar
+        is found at run time by a user rather than here by us. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${maven.enforcer.plugin.version}</version>
+        <executions>
+          <execution>
+            <id>the libraries are staged</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <requireFilesExist>
+                  <files>
+                    <file>${zu.natives.dir}/linux-amd64/libzu.so</file>
+                    <file>${zu.natives.dir}/linux-arm64/libzu.so</file>
+                    <file>${zu.natives.dir}/linux-amd64-musl/libzu.so</file>
+                    <file>${zu.natives.dir}/linux-arm64-musl/libzu.so</file>
+                    <file>${zu.natives.dir}/darwin-amd64/libzu.dylib</file>
+                    <file>${zu.natives.dir}/darwin-arm64/libzu.dylib</file>
+                    <file>${zu.natives.dir}/windows-amd64/zu.dll</file>
+                  </files>
+                  <message>
+                    lib/ has not been staged: run scripts/stage-natives.sh first
+                  </message>
+                </requireFilesExist>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <!-- There is no module-info here because there is no code
+                here, so on the module path this is an automatic module
+                and its name is derived from the file name. That
+                derivation gives zudb.native, and `native` is a Java
+                keyword, so a user who put this on the module path
+                without the line below would be told that the module
+                descriptor cannot be derived and nothing about why. -->
+              <Automatic-Module-Name>dev.zudb.natives</Automatic-Module-Name>
+            </manifestEntries>
+          </archive>
+        </configuration>
+        <executions>
+          <execution>
+            <id>linux-amd64</id>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>linux-amd64</classifier>
+              <includes><include>dev/zudb/native/linux-amd64/**</include></includes>
+            </configuration>
+          </execution>
+          <execution>
+            <id>linux-arm64</id>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>linux-arm64</classifier>
+              <includes><include>dev/zudb/native/linux-arm64/**</include></includes>
+            </configuration>
+          </execution>
+          <execution>
+            <id>linux-amd64-musl</id>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>linux-amd64-musl</classifier>
+              <includes><include>dev/zudb/native/linux-amd64-musl/**</include></includes>
+            </configuration>
+          </execution>
+          <execution>
+            <id>linux-arm64-musl</id>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>linux-arm64-musl</classifier>
+              <includes><include>dev/zudb/native/linux-arm64-musl/**</include></includes>
+            </configuration>
+          </execution>
+          <execution>
+            <id>darwin-amd64</id>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>darwin-amd64</classifier>
+              <includes><include>dev/zudb/native/darwin-amd64/**</include></includes>
+            </configuration>
+          </execution>
+          <execution>
+            <id>darwin-arm64</id>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>darwin-arm64</classifier>
+              <includes><include>dev/zudb/native/darwin-arm64/**</include></includes>
+            </configuration>
+          </execution>
+          <execution>
+            <id>windows-amd64</id>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>windows-amd64</classifier>
+              <includes><include>dev/zudb/native/windows-amd64/**</include></includes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
