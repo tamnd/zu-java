@@ -311,6 +311,8 @@ On 17 through 21, the second dependency at the top of this page is the only line
 
 One thing to know before your first run: from JDK 24, native access is granted by whoever starts the JVM rather than by the library being called. On a class path that means `--enable-native-access=ALL-UNNAMED` on the command line, or the same thing as an `Enable-Native-Access` line in the manifest of the jar that `java -jar` names. On a module path it names the provider instead, `--enable-native-access=dev.zudb.ffm` or `--enable-native-access=dev.zudb.jni` for whichever one is in play. The FFM provider checks `Module::isNativeAccessEnabled` before the first downcall, so a run without the grant is an exception naming the flag rather than a JVM warning on stderr three frames from any of our code. The JNI provider is not restricted this way on a class path, which is one more thing the 17 artifact is quieter about.
 
+Every handle here holds memory the engine owns, and a `close` that is never reached is a leak nothing in Java can see: the pointer is still reachable from a live object, so no collector calls it garbage, and this client has no `Cleaner` behind it on purpose. The allocator is asked instead. A driver opens and closes every handle the client hands out, failures included, under LeakSanitizer, and the report is read for blocks whose stack names `libzu`. The JVM's own unfreed megabyte is not read, because a JVM does not free at exit by design and none of it is anything a caller can act on. It runs on both providers, since FFM arenas and `NewDirectByteBuffer` are different paths to the same memory. Before the clean run it does the run that is meant to leak, so a green report from a job that never loaded the sanitizer is caught rather than believed.
+
 ## Errors
 
 Every failure is a `ZuException`, and the subclass is chosen from the GQLSTATUS class rather than from the message: `ZuSyntaxException` for 42, `ZuDataException` for 22, `ZuTransactionException` for 25 and 40, and so on down. The exception carries the whole diagnostic, so a caller reads fields instead of parsing prose:
@@ -358,6 +360,14 @@ ZU_LIBRARY=/path/to/libzu.dylib java -jar zudb-bench/target/benchmarks.jar
 
 `ZU_LIBRARY` rather than `-Dzu.library` there, because JMH forks a JVM of its own and a fork inherits the environment rather than the system properties.
 
+The leak run is a script rather than a test, because what reads the result is the allocator rather than an assertion:
+
+```sh
+ZU_LIBRARY=/path/to/libzu.so scripts/leaks.sh ffm
+```
+
+Linux only, since LeakSanitizer does not exist on macOS, and it wants `gcc` for the runtime and `llvm-symbolizer` for the names. The second argument is how many times round, and it defaults to twenty five. On macOS what covers the same ground is the lifecycle half of the misuse suite, which counts open file descriptors either side of a few hundred failures and needs no allocator to agree with it.
+
 A release is a tag. `v0.11.0` builds `0.11.0`, takes its libraries from the engine release of the same name, runs the suite against the very library it is about to publish, and puts one signed deployment of the whole reactor in the Central portal. The version is never committed: a pom that has to be bumped before a release is a pom that is wrong between the bump and the tag. Nothing is published without a human pressing the button, and dropping a deployment in the portal is the only way a mistake is undone, because a version that went out cannot be taken back.
 
 ## Beyond Java
@@ -398,7 +408,7 @@ Inside this repository:
 | JMH benchmarks | `zudb-bench` |
 | The staged libraries, built by the release rather than by a clone | `zudb-native` |
 | Every published name and the shape it is published in | `api/surface.txt` |
-| Building the shim, staging the libraries, installing on a clean machine | `scripts` |
+| Building the shim, staging the libraries, installing on a clean machine, watching the allocator | `scripts` |
 
 `api/surface.txt` is generated, one line per exported type and per member a caller outside the module can name, in the spirit of the `api/go1.N.txt` files Go holds itself to. `SurfaceTest` regenerates it and compares, so a change to the API is a change to that file in the same commit, where it is the first thing in the diff rather than something a user finds after the release. Write it down with `mvn -pl zudb test -Dzu.surface.write=true` and review it like any other file: a name that arrived is a minor release, a name that went or changed shape is a major one or a mistake, and the gate says which of the three a diff is while it is still a diff. It reads the compiled classes of the API module and links nothing, so it answers on a clone with no library staged and no Rust installed.
 

@@ -345,6 +345,64 @@ jobs:
               --no-fallback -o "$RUNNER_TEMP/user/main" Main
           env -u ZU_LIBRARY "$RUNNER_TEMP/user/main"
 
+  # A binding holds native memory, and the process that finds out later
+  # is the user's. The suite cannot see that: a test that closes nothing
+  # and asserts on a message passes, and the memory it left behind is
+  # somebody else's problem an hour into a run.
+  #
+  # So the allocator is asked instead. LeakSanitizer is loaded ahead of
+  # the JVM, a driver opens and closes every handle this client hands
+  # out, and the report is read for blocks whose stack names libzu. The
+  # JVM's own unfreed megabyte is not read, because a JVM does not free
+  # at exit on purpose and none of it is anything a user can act on.
+  #
+  # Both providers, because the two allocate down different paths: FFM
+  # arenas on one side, NewDirectByteBuffer and a shim on the other, and
+  # a leak in one of them is invisible from the other.
+  leaks:
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [ffm, jni]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: tamnd/zu
+          path: engine
+
+      # 25 for both rows. The FFM provider cannot be compiled by anything
+      # older, and the shim asks for JNI 1.8 in JNI_OnLoad, so the JNI
+      # row is the same code a caller on 17 runs.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      # Not built with the sanitizer, deliberately. Interposing the
+      # allocator is enough to see a block nobody freed, and an
+      # instrumented engine would mean building the whole of Rust twice
+      # to answer a question about this repository.
+      - name: Build libzu
+        working-directory: engine
+        run: cargo build --release -p zu-capi
+
+      - name: Where the library landed
+        run: echo "ZU_LIBRARY=$GITHUB_WORKSPACE/engine/target/release/libzu.so" >> "$GITHUB_ENV"
+
+      - name: Build the JNI shim
+        if: matrix.provider == 'jni'
+        run: ./scripts/build-shim.sh
+
+      - run: ./scripts/leaks.sh ${{ matrix.provider }}
+
   # What Maven Central will run over the artifacts, run here instead so
   # that a release is not the first time anyone sees it.
   javadoc:
