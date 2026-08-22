@@ -4,20 +4,40 @@ The Java client for [zu](https://github.com/tamnd/zu), an embedded property-grap
 
 ```java
 import dev.zudb.*;
+import java.nio.file.Path;
 
-try (Database db = Database.open("social.zu1");
-     Connection conn = db.connect()) {
+public class Quickstart {
+    public static void main(String[] args) {
+        Path path = Path.of("social.zu1");
 
-    try (Result result = conn.query("""
-            MATCH (p:Person)-[:Follows]->(f)
-            RETURN p.name AS name, count(*) AS n ORDER BY n DESC LIMIT 5
-            """)) {
-        result.stream()
-              .map(r -> r.getString("name") + ": " + r.getLong("n"))
-              .forEach(System.out::println);
+        try (Loader loader = Loader.create(path)) {
+            loader.table("Person", "Follows", 3);
+            loader.column("id", 1L, 2L, 3L);
+            loader.column("name", "ada", "grace", "lynn");
+            loader.edges(new int[] {0, 1}, new int[] {1, 2});
+            loader.finish();
+        }
+
+        try (Database db = Database.open(path);
+             Connection conn = db.connect();
+             Result result = conn.query("""
+                     MATCH (p:Person)-[:Follows]->(f:Person)
+                     RETURN p.name AS name, f.name AS follows ORDER BY p.id
+                     """)) {
+            result.stream()
+                  .map(row -> row.getString("name") + " follows " + row.getString("follows"))
+                  .forEach(System.out::println);
+        }
     }
 }
 ```
+
+```
+ada follows grace
+grace follows lynn
+```
+
+It writes `social.zu1` beside you and prints those two lines, and this repository's tests run it exactly as printed, which is the only way a first example stays true. Run it a second time and it fails: `Loader.create` refuses a path that is already there, and `Database.open` is the call for a database that exists.
 
 ```xml
 <dependency>
@@ -33,7 +53,7 @@ try (Database db = Database.open("social.zu1");
 </dependency>
 ```
 
-Text blocks for queries, try-with-resources for every handle, `Stream<Row>` for iteration. Nothing here should surprise a Java developer, which is the whole goal.
+Text blocks for queries, try-with-resources for every handle, `Stream<Row>` for iteration. Nothing here should surprise a Java developer, which is the whole goal. The loader in the middle of it is there because the engine has no DDL yet, so a table comes into being out of columns rather than out of a `CREATE`.
 
 ## Reading a column without reading a row
 
@@ -114,7 +134,7 @@ Two ways, and which one you want follows from whether the database exists yet. T
 A loader builds one out of whole columns. It is the fastest way values get in and, while the engine has no DDL, it is the only way a table comes into being at all:
 
 ```java
-try (Loader loader = Loader.create(Path.of("social.zu1"))) {
+try (Loader loader = Loader.create(Path.of("people.zu1"))) {
     loader.table("Person", "Follows", 3);
     loader.column("id", 1L, 2L, 3L);
     loader.column("name", "ada", "grace", "alan");
@@ -294,7 +314,7 @@ catch (ZuSyntaxException e) {
 
 ## What works today
 
-The engine has no DDL yet, so there is no `CREATE NODE TABLE` and no statement in this client writes a schema. A table comes into being through `Loader`, which is why the loader example above builds the graph the example at the top of this file reads. What runs against a fresh database with nothing in it is the expression and projection surface: `RETURN`, `UNWIND`, parameters, lists, records, and the temporal types.
+The engine has no DDL yet, so there is no `CREATE NODE TABLE` and no statement in this client writes a schema. A table comes into being through `Loader`, which is why the quickstart at the top of this file builds its graph before it reads one. What runs against a fresh database with nothing in it is the expression and projection surface: `RETURN`, `UNWIND`, parameters, lists, records, and the temporal types.
 
 ## Building
 

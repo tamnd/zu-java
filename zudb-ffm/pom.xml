@@ -66,6 +66,30 @@
           </archive>
         </configuration>
       </plugin>
+      <!-- What ReadmeTest hands the JVM it starts. The programs on the
+           front page are run in a process of their own, off a class path
+           holding this provider and the API and nothing else, and the
+           list of what that comes to is written by the build rather than
+           guessed at by the test. A test that pointed at a sibling
+           module's target directory would keep passing on the day the
+           dependency graph changed under it. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>readme-classpath</id>
+            <phase>generate-test-resources</phase>
+            <goals>
+              <goal>build-classpath</goal>
+            </goals>
+            <configuration>
+              <includeScope>runtime</includeScope>
+              <outputFile>${project.build.directory}/readme-classpath.txt</outputFile>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
