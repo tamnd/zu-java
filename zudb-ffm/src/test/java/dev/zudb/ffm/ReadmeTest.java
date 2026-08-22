@@ -96,9 +96,9 @@ class ReadmeTest {
 
     List<String> command = new ArrayList<>();
     command.add(Paths.get(System.getProperty("java.home"), "bin", "java").toString());
-    // The jars carry Enable-Native-Access in their manifest and a class path
-    // run off them needs no flag. This runs off a directory of class files,
-    // which has no manifest to carry it, so the grant is made here instead.
+    // From JDK 24 the grant belongs to whoever starts the JVM, which here is
+    // this process starting that one. A manifest carries it only for the jar
+    // that java -jar names, and a class path run is not that.
     command.add("--enable-native-access=ALL-UNNAMED");
     command.add("-Dzu.library=" + System.getProperty("zu.library"));
     command.add("-classpath");
