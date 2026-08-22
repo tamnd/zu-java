@@ -7,6 +7,7 @@ import java.nio.LongBuffer;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -63,6 +64,7 @@ public final class Loader implements AutoCloseable {
    * @throws ZuException if the path exists or cannot be written
    */
   public static Loader create(Path path) {
+    Objects.requireNonNull(path, "path");
     ZuBinding zu = Zu.binding();
     return new Loader(zu, zu.loaderCreate(path.toString()));
   }
