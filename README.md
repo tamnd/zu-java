@@ -277,6 +277,8 @@ The library inside the jar is a resource, and no loader on any platform can map 
 
 A GraalVM native image needs no configuration for any of this. Both artifacts carry their own reachability metadata: `zudb-ffm` lists every signature it binds, because an image has no linker in it and each downcall stub is machine code the builder has to be told to write, and `zudb-native` registers the libraries so that one ends up inside the image rather than being looked for on a machine that does not have it. Use a classifier rather than the platform-complete jar, or the image carries seven libraries and uses one. CI builds an image on Linux and macOS every run and makes it answer a query, because a metadata file that is wrong produces an image that builds clean and dies on the first call.
 
+None of that is taken on trust. A nightly job installs this client the way this page says to, in a container holding a JDK and Maven and nothing else, and runs the program at the top of the page against the artifacts the commit would publish. Before it starts it asserts the machine has no libzu on it, no header, no pkg-config file, no `ZU_LIBRARY`, and no compiler of any kind, because an install that works for a reason the reader does not have is the one failure a test on our own machine cannot see. Then it takes the library artifact away again and checks that what comes back names the line to add, since a job that has only ever passed is a job nobody has watched fail.
+
 On the module path the artifact needs `--add-modules dev.zudb.natives`. Nothing `requires` it, since there is no code in it to require, and a jar nothing requires is a jar that is never resolved and whose resources are therefore invisible. The search says so itself when it comes up empty on a module path, so the failure names the flag rather than leaving a user to work out why the same classpath run worked.
 
 ## How it binds
@@ -296,7 +298,18 @@ An SDK that requires a recent JDK in 2026 excludes a large part of the enterpris
 
 A `ServiceLoader` picks the provider at run time and application code never names one, and the same suite of cases runs against both every build, so a difference between the two is a red job rather than something you find. Add `zudb-jni` beside `zudb` on 17 through 21, add `zudb-ffm` on 25 and later, or add both and let the loader pick. The FFM artifact targets Java 25 rather than the Java 22 that finalised the API, because 22 has been out of support since September 2024 and shipping against an unsupported release only moves the problem. CI runs 17, 21, 25, and 26.
 
-One thing to know before your first run: from JDK 24, native access must be granted explicitly. The jars carry `Enable-Native-Access: ALL-UNNAMED` for the class path case, the module path case wants `--enable-native-access=dev.zudb.ffm` or `--enable-native-access=dev.zudb.jni` for whichever provider is in play, and the FFM provider checks `Module::isNativeAccessEnabled` before the first downcall so that the failure is an exception naming the flag rather than a JVM warning on stderr three frames from any of our code.
+On 17 through 21, the second dependency at the top of this page is the only line that changes:
+
+```xml
+<dependency>
+  <groupId>dev.zudb</groupId>
+  <artifactId>zudb-jni</artifactId>
+  <version>${zu.version}</version>
+  <scope>runtime</scope>
+</dependency>
+```
+
+One thing to know before your first run: from JDK 24, native access is granted by whoever starts the JVM rather than by the library being called. On a class path that means `--enable-native-access=ALL-UNNAMED` on the command line, or the same thing as an `Enable-Native-Access` line in the manifest of the jar that `java -jar` names. On a module path it names the provider instead, `--enable-native-access=dev.zudb.ffm` or `--enable-native-access=dev.zudb.jni` for whichever one is in play. The FFM provider checks `Module::isNativeAccessEnabled` before the first downcall, so a run without the grant is an exception naming the flag rather than a JVM warning on stderr three frames from any of our code. The JNI provider is not restricted this way on a class path, which is one more thing the 17 artifact is quieter about.
 
 ## Errors
 
@@ -385,7 +398,7 @@ Inside this repository:
 | JMH benchmarks | `zudb-bench` |
 | The staged libraries, built by the release rather than by a clone | `zudb-native` |
 | Every published name and the shape it is published in | `api/surface.txt` |
-| Building the shim, staging the libraries | `scripts` |
+| Building the shim, staging the libraries, installing on a clean machine | `scripts` |
 
 `api/surface.txt` is generated, one line per exported type and per member a caller outside the module can name, in the spirit of the `api/go1.N.txt` files Go holds itself to. `SurfaceTest` regenerates it and compares, so a change to the API is a change to that file in the same commit, where it is the first thing in the diff rather than something a user finds after the release. Write it down with `mvn -pl zudb test -Dzu.surface.write=true` and review it like any other file: a name that arrived is a minor release, a name that went or changed shape is a major one or a mistake, and the gate says which of the three a diff is while it is still a diff. It reads the compiled classes of the API module and links nothing, so it answers on a clone with no library staged and no Rust installed.
 

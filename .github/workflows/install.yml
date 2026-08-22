@@ -1,0 +1,149 @@
+# Installing this client on a machine that has nothing on it.
+#
+# Every other job in this repository runs against a checkout: the engine
+# is built beside it, an environment variable points at the library, and
+# the tests are told where everything is so that they test the binding
+# rather than the search. That is the right thing for a test suite and
+# it is the wrong thing entirely for the question a new user asks, which
+# is whether three lines in a pom and a JDK are enough.
+#
+# So this job answers that question somewhere else. A container with a
+# JDK and Maven in it and nothing else, no toolchain, no engine, no
+# variable, and the program off the front page built against the
+# artifacts this commit would publish. It runs nightly rather than on
+# every push, because what breaks it is rarely a commit here: it is a
+# base image that changed, a JDK that tightened a default, a
+# dependency's dependency that moved.
+#
+# Both providers get a row, because the claim this client makes that no
+# other client of this engine makes is that it installs on a JDK from
+# 17 and on a JDK from 25, over two different bindings, out of the same
+# dependency. A row each is what keeps that from being a paragraph.
+name: Install
+
+on:
+  schedule:
+    # Nightly, an hour that is nobody's working day and not on the hour,
+    # where a queue forms.
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/install.yml
+      - scripts/install.sh
+      - README.md
+      - "**/pom.xml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MAVEN_ARGS: -B -ntp
+
+jobs:
+  clean-machine:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - provider: zudb-ffm
+            image: maven:3-eclipse-temurin-25
+            java: "25"
+          - provider: zudb-jni
+            image: maven:3-eclipse-temurin-17
+            java: "17"
+    name: ${{ matrix.provider }} on JDK ${{ matrix.java }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: tamnd/zu
+          path: engine
+
+      # This JDK is the one that builds the artifacts. The one that
+      # installs them is inside the container and is a different JDK,
+      # which is the point of the row.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      - name: Build libzu
+        working-directory: engine
+        run: cargo build --release -p zu-capi
+
+      # One platform, this runner's, because a runner builds the one it
+      # is. The release is where all seven have to be there, and the
+      # enforcer that says so is stood down here for the same reason it
+      # is in the natives job.
+      - name: Stage the one platform this runner is
+        run: |
+          set -eu
+          mkdir -p zudb-native/lib/linux-amd64
+          cp engine/target/release/libzu.so zudb-native/lib/linux-amd64/libzu.so
+
+      # The JNI row needs a shim, and a shim needs a C compiler, which is
+      # exactly the tool the container is asserted not to have. That is
+      # not a contradiction: the compiler is ours to have at build time
+      # and the user's not to need at install time, and the shim ends up
+      # in the jar.
+      - name: Build the JNI shim
+        run: ./scripts/build-shim.sh
+
+      # A file repository cannot serve a snapshot without the metadata a
+      # deploy writes, and a version with SNAPSHOT in it is not what a
+      # reader of the page would type anyway. So the artifacts are
+      # staged under the version this pom is on its way to.
+      - name: Which version this would be
+        run: |
+          set -eu
+          snapshot="$(mvn $MAVEN_ARGS help:evaluate -Dexpression=project.version -q -DforceStdout)"
+          echo "VERSION=${snapshot%-SNAPSHOT}" >> "$GITHUB_ENV"
+
+      - name: Stage the artifacts
+        run: |
+          set -eu
+          mvn $MAVEN_ARGS versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
+          # A cached local repository can hold this version from a run
+          # before this one, and an install that quietly resolved that
+          # is an install nobody tested.
+          rm -rf "$HOME/.m2/repository/dev/zudb"
+          mvn $MAVEN_ARGS -Pnatives -Denforcer.skip=true -DskipTests \
+              -pl zudb,zudb-ffm,zudb-jni,zudb-native -am clean install
+          mkdir -p "$RUNNER_TEMP/repo"
+          cp -r "$HOME/.m2/repository/dev" "$RUNNER_TEMP/repo/"
+          # Notes the local repository keeps about where it downloaded
+          # something from. A repository being served has no use for
+          # them and they are one more way for a resolve to go
+          # sideways.
+          find "$RUNNER_TEMP/repo" -name _remote.repositories -delete
+          # A repository serves a checksum beside every file, and a
+          # resolver that finds none says so at length. Central has
+          # them, so this has them, or else the install being tested is
+          # noisier than the one a user gets.
+          find "$RUNNER_TEMP/repo" -type f \
+              -exec sh -c 'sha1sum "$1" | cut -d" " -f1 > "$1.sha1"' _ {} \;
+          find "$RUNNER_TEMP/repo" -name '*.jar' -o -name '*.pom' | sort
+
+      - name: Install it the way a reader of the page would
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/app"
+          docker run --rm \
+            -v "$PWD:/src:ro" \
+            -v "$RUNNER_TEMP/repo:/repo:ro" \
+            -v "$RUNNER_TEMP/app:/app" \
+            -e SRC=/src -e REPO=/repo -e APP=/app \
+            -e VERSION="$VERSION" \
+            -e PROVIDER=${{ matrix.provider }} \
+            -e ABSENT="rustc cargo cc gcc g++ make cmake ninja" \
+            ${{ matrix.image }} \
+            bash /src/scripts/install.sh
