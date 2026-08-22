@@ -373,6 +373,22 @@ Pre-1.0 and pre-release. Nothing is published yet. The engine, the C ABI, and th
 
 If a bug reproduces through the `zu` CLI, it belongs in [tamnd/zu](https://github.com/tamnd/zu/issues), not here.
 
+Inside this repository:
+
+| What | Where |
+|---|---|
+| The API, and nothing that touches the library | `zudb` |
+| The Panama provider | `zudb-ffm` |
+| The JNI provider, and the C shim it calls through | `zudb-jni` |
+| The cases every provider owes, run by both of them | `zudb-tck` |
+| Arrow, over the C Data Interface | `zudb-arrow` |
+| JMH benchmarks | `zudb-bench` |
+| The staged libraries, built by the release rather than by a clone | `zudb-native` |
+| Every published name and the shape it is published in | `api/surface.txt` |
+| Building the shim, staging the libraries | `scripts` |
+
+`api/surface.txt` is generated, one line per exported type and per member a caller outside the module can name, in the spirit of the `api/go1.N.txt` files Go holds itself to. `SurfaceTest` regenerates it and compares, so a change to the API is a change to that file in the same commit, where it is the first thing in the diff rather than something a user finds after the release. Write it down with `mvn -pl zudb test -Dzu.surface.write=true` and review it like any other file: a name that arrived is a minor release, a name that went or changed shape is a major one or a mistake, and the gate says which of the three a diff is while it is still a diff. It reads the compiled classes of the API module and links nothing, so it answers on a clone with no library staged and no Rust installed.
+
 ## License
 
 Apache-2.0, same as the engine.
