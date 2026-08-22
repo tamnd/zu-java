@@ -80,6 +80,12 @@ public record Diagnostic(
       case CONFLICT:
         return new ZuTransactionException(this);
       case IO:
+      case CORRUPT:
+        // A file that is not a database is the same mistake as a file that
+        // is not there: a path that does not lead to a database. Almost
+        // every one of these is a caller who mistyped a path or pointed at
+        // the wrong file, and calling that an internal error tells them to
+        // file a bug about somebody else's code.
         return new ZuConnectionException(this);
       default:
         return new ZuInternalException(this);

@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -56,6 +57,7 @@ public final class Connection implements AutoCloseable {
    * @return the connection, which the caller closes
    */
   public static Connection open(Path path) {
+    Objects.requireNonNull(path, "path");
     ZuBinding zu = Zu.binding();
     return new Connection(zu, zu.open(path.toString()));
   }
@@ -67,7 +69,7 @@ public final class Connection implements AutoCloseable {
    * @return the connection, which the caller closes
    */
   public static Connection open(String path) {
-    return open(Path.of(path));
+    return open(Path.of(Objects.requireNonNull(path, "path")));
   }
 
   /**
@@ -78,6 +80,7 @@ public final class Connection implements AutoCloseable {
    * @return the connection, which the caller closes
    */
   public static Connection create(Path path) {
+    Objects.requireNonNull(path, "path");
     ZuBinding zu = Zu.binding();
     return new Connection(zu, zu.create(path.toString()));
   }
@@ -89,7 +92,7 @@ public final class Connection implements AutoCloseable {
    * @return the connection, which the caller closes
    */
   public static Connection create(String path) {
-    return create(Path.of(path));
+    return create(Path.of(Objects.requireNonNull(path, "path")));
   }
 
   /**
@@ -120,6 +123,7 @@ public final class Connection implements AutoCloseable {
    * @return the result, which the caller closes
    */
   public Result query(String statement) {
+    Objects.requireNonNull(statement, "statement");
     return new Result(zu, zu.query(open(), statement), this);
   }
 
@@ -144,6 +148,7 @@ public final class Connection implements AutoCloseable {
    * @return the statement, which the caller closes
    */
   public Statement prepare(String statement) {
+    Objects.requireNonNull(statement, "statement");
     return new Statement(zu, zu.prepare(open(), statement), this);
   }
 
@@ -158,7 +163,8 @@ public final class Connection implements AutoCloseable {
    * @return the appender, which the caller closes
    */
   public Appender appender(String table) {
-    return new Appender(zu, zu.appenderOpen(open(), table));
+    Objects.requireNonNull(table, "table");
+    return new Appender(zu, zu.appenderOpen(open(), table), this);
   }
 
   /**

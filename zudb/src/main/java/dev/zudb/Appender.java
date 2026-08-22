@@ -51,11 +51,13 @@ public final class Appender implements AutoCloseable {
 
   private final ZuBinding zu;
   private final AtomicLong handle;
+  private final Connection conn;
   private long finished = -1;
 
-  Appender(ZuBinding zu, long handle) {
+  Appender(ZuBinding zu, long handle, Connection conn) {
     this.zu = zu;
     this.handle = new AtomicLong(handle);
+    this.conn = conn;
   }
 
   /**
@@ -400,6 +402,16 @@ public final class Appender implements AutoCloseable {
     if (h == 0) {
       throw new ZuClosedException(
           Diagnostic.misuse(Status.MISUSE_CLOSED, "this appender is closed"));
+    }
+    // The engine refuses this too, and refuses it without an error record
+    // attached, so what a caller would otherwise be told is the name of a C
+    // function. An appender outliving its connection is an ordinary mistake
+    // in a program that closes things in the wrong order, and the sentence
+    // that names it is worth more than the one that names us.
+    if (conn != null && conn.isClosed()) {
+      throw new ZuClosedException(
+          Diagnostic.misuse(
+              Status.MISUSE_CLOSED, "the connection this appender writes through is closed"));
     }
     return h;
   }

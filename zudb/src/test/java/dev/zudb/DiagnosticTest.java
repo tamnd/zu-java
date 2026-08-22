@@ -49,7 +49,11 @@ class DiagnosticTest {
         ZuInterruptedException.class, diagnostic(Status.INTERRUPTED, null).toException());
     assertInstanceOf(ZuTransactionException.class, diagnostic(Status.CONFLICT, null).toException());
     assertInstanceOf(ZuConnectionException.class, diagnostic(Status.IO, null).toException());
-    assertInstanceOf(ZuInternalException.class, diagnostic(Status.CORRUPT, null).toException());
+    // A file that is not a database is a path mistake, not a bug in the
+    // engine, so it lands beside the file that is not there rather than in
+    // the class that asks the caller to report it.
+    assertInstanceOf(ZuConnectionException.class, diagnostic(Status.CORRUPT, null).toException());
+    assertInstanceOf(ZuInternalException.class, diagnostic(Status.UNKNOWN, null).toException());
   }
 
   @Test

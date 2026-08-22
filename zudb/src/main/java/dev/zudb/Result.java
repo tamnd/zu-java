@@ -141,6 +141,11 @@ public final class Result implements AutoCloseable, Iterable<Row> {
    * @return the row, which is good until this result closes
    */
   public Row row(long index) {
+    // A closed result has no rows, so this refuses here rather than handing
+    // back a Row that fails on the first cell read. The wrong call is this
+    // one, and a failure two lines further on is a failure a caller has to
+    // work backwards from.
+    open();
     if (index < 0 || index >= rows) {
       throw new ZuProgrammingException(
           Diagnostic.misuse(
@@ -263,6 +268,7 @@ public final class Result implements AutoCloseable, Iterable<Row> {
    */
   public LongBuffer longs(int column) {
     checkColumn(column);
+    checkHolds("longs", column, Type.INT, Type.BOOL);
     LongBuffer b = zu.colLongs(open(), column, rows);
     return b == null ? LongBuffer.allocate(0).asReadOnlyBuffer() : b;
   }
@@ -275,6 +281,7 @@ public final class Result implements AutoCloseable, Iterable<Row> {
    */
   public DoubleBuffer doubles(int column) {
     checkColumn(column);
+    checkHolds("doubles", column, Type.FLOAT, Type.INT);
     DoubleBuffer b = zu.colDoubles(open(), column, rows);
     return b == null ? DoubleBuffer.allocate(0).asReadOnlyBuffer() : b;
   }
@@ -292,6 +299,7 @@ public final class Result implements AutoCloseable, Iterable<Row> {
    */
   public LongBuffer nodeOffsets(int column) {
     checkColumn(column);
+    checkHolds("nodeOffsets", column, Type.NODE);
     LongBuffer b = zu.colNodeOffsets(open(), column, rows);
     return b == null ? LongBuffer.allocate(0).asReadOnlyBuffer() : b;
   }
@@ -462,6 +470,50 @@ public final class Result implements AutoCloseable, Iterable<Row> {
       throw new ZuClosedException(Diagnostic.misuse(Status.MISUSE_CLOSED, "this result is closed"));
     }
     return h;
+  }
+
+  /**
+   * Refuses a borrowed column the accessor cannot read, in this client's own
+   * words.
+   *
+   * <p>The engine refuses it too, but a call that comes back without a
+   * {@code zu_error} on it leaves nothing to say except which C function was
+   * called, and "zu_result_col_i64 answered MISUSE" is a sentence about our
+   * implementation rather than about the caller's program. Here there is a
+   * column name and a type to name, so this says them.
+   *
+   * <p>The first row is what is read, because a borrowed column is one lane
+   * of one type and the first cell is the cheapest place that says which. A
+   * null there says nothing, so it passes and the engine has the last word.
+   */
+  private void checkHolds(String accessor, int column, Type... reads) {
+    if (rows == 0) {
+      return;
+    }
+    Type holds = cellType(0, column);
+    if (holds == Type.NULL) {
+      return;
+    }
+    for (Type ok : reads) {
+      if (holds == ok) {
+        return;
+      }
+    }
+    throw new ZuProgrammingException(
+        Diagnostic.misuse(
+            Status.MISUSE,
+            "column "
+                + column
+                + " of this result is "
+                + names.get(column)
+                + ", which holds "
+                + holds
+                + ", and "
+                + accessor
+                + "("
+                + column
+                + ") reads a column of "
+                + reads[0]));
   }
 
   void checkColumn(int column) {

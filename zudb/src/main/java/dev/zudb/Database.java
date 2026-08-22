@@ -2,6 +2,7 @@ package dev.zudb;
 
 import dev.zudb.spi.ZuBinding;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -53,6 +54,8 @@ public final class Database implements AutoCloseable {
    * @return the database
    */
   public static Database open(Path path, Config config) {
+    Objects.requireNonNull(path, "path");
+    Objects.requireNonNull(config, "config");
     ZuBinding zu = Zu.binding();
     return new Database(
         zu,
@@ -68,7 +71,7 @@ public final class Database implements AutoCloseable {
    * @return the database
    */
   public static Database open(String path) {
-    return open(Path.of(path), Config.defaults());
+    return open(Path.of(Objects.requireNonNull(path, "path")), Config.defaults());
   }
 
   /**
@@ -79,7 +82,7 @@ public final class Database implements AutoCloseable {
    * @return the database
    */
   public static Database open(String path, Config config) {
-    return open(Path.of(path), config);
+    return open(Path.of(Objects.requireNonNull(path, "path")), config);
   }
 
   /**
@@ -105,6 +108,8 @@ public final class Database implements AutoCloseable {
    * @return the database
    */
   public static Database create(Path path, Config config) {
+    Objects.requireNonNull(path, "path");
+    Objects.requireNonNull(config, "config");
     ZuBinding zu = Zu.binding();
     return new Database(
         zu,
@@ -133,6 +138,7 @@ public final class Database implements AutoCloseable {
    * @return the database
    */
   public static Database memory(Config config) {
+    Objects.requireNonNull(config, "config");
     ZuBinding zu = Zu.binding();
     return new Database(
         zu, zu.databaseMemory(config.memoryLimit(), config.threads(), config.readOnly()));
