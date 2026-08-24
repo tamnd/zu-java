@@ -548,6 +548,8 @@ public final class Result implements AutoCloseable, Iterable<Row> {
         return new Value.Float(zu.valueDouble(value));
       case STR:
         return new Value.Str(zu.valueString(value));
+      case BYTES:
+        return new Value.Bytes(zu.valueBytes(value));
       case NODE: {
         long[] n = zu.valueNode(value);
         return new Value.Node((int) n[0], n[1]);

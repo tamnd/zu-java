@@ -279,6 +279,29 @@ public final class Connection implements AutoCloseable {
   }
 
   /**
+   * What a table id is called.
+   *
+   * <p>A {@link Value.Node} carries the number the engine keeps its table
+   * under rather than the name, because two tables number their rows from
+   * zero and the number is what identifies the node. This is how to get back
+   * to the name the statement wrote:
+   *
+   * <pre>{@code
+   * Value.Node n = row.getNode("p");
+   * String label = conn.tableName(n.table());   // "person"
+   * }</pre>
+   *
+   * <p>Node and rel tables share one id space, so this answers for a
+   * {@link Value.Rel} as well.
+   *
+   * @param table the table id
+   * @return the name, or null when no table has that id
+   */
+  public String tableName(int table) {
+    return zu.connTableName(open(), table);
+  }
+
+  /**
    * Asks to be called back every so often while a statement runs, with how
    * far it has got and whether it should go on.
    *

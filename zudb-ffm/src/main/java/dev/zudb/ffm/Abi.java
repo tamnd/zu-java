@@ -73,6 +73,7 @@ final class Abi {
   final MethodHandle connClose;
   final MethodHandle connInterrupt;
   final MethodHandle connRowsRead;
+  final MethodHandle connTableName;
   final MethodHandle connSetProgress;
   final MethodHandle connInTransaction;
   final MethodHandle begin;
@@ -160,6 +161,7 @@ final class Abi {
   final MethodHandle valueI64;
   final MethodHandle valueF64;
   final MethodHandle valueStr;
+  final MethodHandle valueBytes;
   final MethodHandle valueTemporal;
   final MethodHandle valueNode;
   final MethodHandle valueRel;
@@ -216,6 +218,8 @@ final class Abi {
     connClose = h("zu_conn_close", FunctionDescriptor.ofVoid(ADDRESS));
     connInterrupt = h("zu_conn_interrupt", FunctionDescriptor.of(JAVA_INT, ADDRESS));
     connRowsRead = h("zu_conn_rows_read", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
+    connTableName = h("zu_conn_table_name", FunctionDescriptor.of(
+        ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
     connSetProgress = h("zu_conn_set_progress", FunctionDescriptor.of(
         JAVA_INT, ADDRESS, ADDRESS, ADDRESS, JAVA_LONG));
     connInTransaction = h("zu_conn_in_transaction", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
@@ -423,6 +427,7 @@ final class Abi {
     valueI64 = h("zu_value_i64", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
     valueF64 = h("zu_value_f64", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
     valueStr = h("zu_value_str", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
+    valueBytes = h("zu_value_bytes", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
     valueTemporal =
         h("zu_value_temporal", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS, ADDRESS));
     valueNode = h("zu_value_node", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));

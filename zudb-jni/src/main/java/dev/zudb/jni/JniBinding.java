@@ -328,6 +328,11 @@ final class JniBinding implements ZuBinding {
   }
 
   @Override
+  public String connTableName(long conn, int table) {
+    return str(nConnTableName(conn, table));
+  }
+
+  @Override
   public void connSetProgress(long conn, Progress watcher, long intervalMillis) {
     long cookie = nConnSetProgress(conn, watcher, intervalMillis);
     // The old arrangement goes only once the engine has the new one, so
@@ -555,6 +560,12 @@ final class JniBinding implements ZuBinding {
   @Override
   public String valueString(long value) {
     return str(nValueString(value));
+  }
+
+  @Override
+  public byte[] valueBytes(long value) {
+    byte[] octets = nValueBytes(value);
+    return octets == null ? new byte[0] : octets;
   }
 
   @Override
@@ -874,6 +885,8 @@ final class JniBinding implements ZuBinding {
 
   private static native long nConnRowsRead(long conn);
 
+  private static native byte[] nConnTableName(long conn, int table);
+
   private static native long nConnSetProgress(long conn, Progress watcher, long intervalMillis);
 
   private static native void nWatchFree(long cookie);
@@ -958,6 +971,8 @@ final class JniBinding implements ZuBinding {
   private static native double nValueDouble(long value);
 
   private static native byte[] nValueString(long value);
+
+  private static native byte[] nValueBytes(long value);
 
   private static native long[] nValueTemporal(long value);
 

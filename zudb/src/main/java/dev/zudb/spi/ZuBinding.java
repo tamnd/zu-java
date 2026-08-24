@@ -211,6 +211,19 @@ public interface ZuBinding {
   long connRowsRead(long conn);
 
   /**
+   * What a table id is called.
+   *
+   * <p>Node and rel tables share one id space, so one call answers for both
+   * kinds. This is what turns the number in a {@code Value.Node} into the name
+   * the statement wrote.
+   *
+   * @param conn the connection
+   * @param table the table id
+   * @return the name, or null when no table has that id
+   */
+  String connTableName(long conn, int table);
+
+  /**
    * Asks to be called back every so often while a statement runs.
    *
    * <p>The arrangement belongs to the connection and covers every statement
@@ -621,6 +634,18 @@ public interface ZuBinding {
    * @return the string, never null
    */
   String valueString(long value);
+
+  /**
+   * A value as a byte string.
+   *
+   * <p>A separate call from {@link #valueString(long)} because the two hold
+   * different types, and one answering both would let a host read octets as
+   * text without ever asking whether they were.
+   *
+   * @param value the value, which must be a byte string
+   * @return the octets, copied out, never null
+   */
+  byte[] valueBytes(long value);
 
   /**
    * A value as a temporal.

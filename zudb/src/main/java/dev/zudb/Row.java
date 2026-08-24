@@ -224,6 +224,42 @@ public final class Row {
   }
 
   /**
+   * A cell as a byte string.
+   *
+   * <p>Null rather than a throw for a cell with nothing in it, on the same
+   * terms as {@link #getString(int)}: an array reference can say that.
+   *
+   * <p>A string cell is refused rather than encoded. The two are different
+   * types and a client that quietly turned one into the other would be
+   * answering a question nobody asked.
+   *
+   * @param column the column, counting from zero
+   * @return the octets, this caller's own copy, or null if the cell is null
+   * @throws ZuProgrammingException if the cell holds something that is not a
+   *     byte string
+   */
+  public byte[] getBytes(int column) {
+    Value v = get(column);
+    if (v instanceof Value.Bytes b) {
+      return b.value();
+    }
+    if (v instanceof Value.Null) {
+      return null;
+    }
+    throw wrong(column, v, "a byte string");
+  }
+
+  /**
+   * A cell as a byte string.
+   *
+   * @param column what the statement called it
+   * @return the octets, or null if the cell is null
+   */
+  public byte[] getBytes(String column) {
+    return getBytes(result.columnIndex(column));
+  }
+
+  /**
    * A cell as a date, a time, a datetime or a duration.
    *
    * @param column the column, counting from zero

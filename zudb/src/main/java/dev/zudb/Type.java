@@ -34,7 +34,9 @@ public enum Type {
   /** A graph, one of the two reference values, which has no contents to read. */
   GRAPH(11),
   /** A binding table, the other reference value. */
-  BINDING_TABLE(12);
+  BINDING_TABLE(12),
+  /** A byte string, which is octets and not text. */
+  BYTES(13);
 
   private final int value;
 
