@@ -164,7 +164,7 @@ public final class Runner {
     }
   }
 
-  private static Path casePath(Path directory, String suite, String name) {
+  static Path casePath(Path directory, String suite, String name) {
     return directory.resolve(suite + "-" + name + ".zu");
   }
 
@@ -271,7 +271,7 @@ public final class Runner {
         prepared.close();
       }
       if (!one.raises().isEmpty()) {
-        String code = e instanceof ZuException zu ? zu.code().orElse("") : "";
+        String code = statusCode(e);
         if (code.isEmpty()) {
           return ran(suite, one, Outcome.FAILED, "failed with no GQLSTATUS where the case wants "
               + one.raises() + ": " + errorText(e));
@@ -282,7 +282,7 @@ public final class Runner {
         return ran(suite, one, Outcome.FAILED, "raised " + code + " where the case wants "
             + one.raises() + ": " + errorText(e));
       }
-      if (e instanceof ZuException zu && unsupported(zu)) {
+      if (unsupported(e)) {
         return ran(suite, one, Outcome.UNSUPPORTED, errorText(e));
       }
       return ran(suite, one, Outcome.FAILED, errorText(e));
@@ -568,9 +568,31 @@ public final class Runner {
    * case ahead of the engine, which the corpus allows on purpose: the cases
    * are the contract and the engine catches up to them.
    */
-  private static boolean unsupported(ZuException e) {
-    String code = e.code().orElse("");
+  static boolean unsupported(RuntimeException e) {
+    return unsupported(statusCode(e));
+  }
+
+  /**
+   * The same, of a code on its own.
+   *
+   * @param code the GQLSTATUS, or the empty string for a failure carrying
+   *     none
+   * @return whether it says the engine has not caught up
+   */
+  static boolean unsupported(String code) {
     return code.startsWith("42") || code.startsWith("0A");
+  }
+
+  /**
+   * The GQLSTATUS a failure carries, or the empty string for one that
+   * carries none, which is what the reader's own refusals and the export's
+   * carry.
+   *
+   * @param e what was thrown
+   * @return the code
+   */
+  static String statusCode(RuntimeException e) {
+    return e instanceof ZuException zu ? zu.code().orElse("") : "";
   }
 
   /**
@@ -622,7 +644,7 @@ public final class Runner {
   }
 
   /** A list of column names the way Rust's {@code {:?}} writes one. */
-  private static String names(List<String> columns) {
+  static String names(List<String> columns) {
     StringBuilder out = new StringBuilder("[");
     String between = "";
     for (String name : columns) {

@@ -38,6 +38,19 @@
       <groupId>dev.zudb</groupId>
       <artifactId>zudb</artifactId>
     </dependency>
+    <!-- A provider at test scope and not at compile scope, because this
+      module is the API and the corpus and neither of them picks a
+      provider. Somebody running the command puts one on the path
+      alongside a library, the same choice they make for their own
+      program. The tests need one to run at all, and the FFM provider is
+      the one that fits: this module already compiles to 25 for the sake
+      of reading a result through the C Data Interface. -->
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb-ffm</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -51,6 +64,19 @@
             <arg>-Xlint:all,-requires-automatic,-requires-transitive-automatic</arg>
             <arg>-Werror</arg>
           </compilerArgs>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- On the class path and not the module path, because this is
+               a command a person runs and the way it is run is a class
+               path with a provider and a library on it. The grant names
+               the unnamed module for the same reason, and it is the
+               grant the README tells that person to pass. -->
+          <useModulePath>false</useModulePath>
+          <argLine>--enable-native-access=ALL-UNNAMED ${zu.test.args}</argLine>
         </configuration>
       </plugin>
     </plugins>
