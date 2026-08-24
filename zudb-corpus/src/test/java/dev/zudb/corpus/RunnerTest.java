@@ -225,13 +225,18 @@ final class RunnerTest {
    * A case the engine has not caught up to is unsupported and not a
    * failure, which is what lets the corpus be the contract and the engine
    * catch up to it. The two classes that say so are 42 and 0A.
+   *
+   * <p>The statement has to be one the engine really has not reached, and
+   * a test like this is a canary by construction: the day CREATE lands,
+   * this stops testing what it says it tests and has to pick another
+   * spelling. It was SELECT before, which the engine now parses.
    */
   @Test
   void aCaseAheadOfTheEngineIsUnsupportedAndNotAFailure() {
     Runner.Ran got = only("""
           - name: one
             doc: d
-            query: SELECT 1
+            query: CREATE NODE TABLE person(uid INT64)
             columns:
               - n
             rows:
