@@ -32,16 +32,17 @@ import java.util.Map;
  * That is a fact about this engine rather than about the corpus, since its
  * own value is one signed 64 bit integer either way.
  *
- * <p>Two of these are the same value when they are {@link #equals}, which
- * is the whole reason for records here. A float is the case that usually
- * needs a comparison written by hand: NaN is not equal to itself and a case
- * asserting NaN has to pass, and 0.0 equals -0.0 and a case asserting -0.0
- * has to fail on 0.0, because the sign of zero is exactly the sort of thing
- * that survives one binding and not another. A record's generated equality
- * compares a double with {@code Double.compare}, which says yes to the
- * first pair and no to the second, so it is already the comparison the
- * corpus wants. {@link Bytes} is the one that is not, since an array
- * compares by identity, and it is written out below.
+ * <p>Two of these are the same value when they are {@link Object#equals(Object)
+ * equal}, which is the whole reason for records here. A float is the case
+ * that usually needs a comparison written by hand: NaN is not equal to
+ * itself and a case asserting NaN has to pass, and 0.0 equals -0.0 and a
+ * case asserting -0.0 has to fail on 0.0, because the sign of zero is
+ * exactly the sort of thing that survives one binding and not another. A
+ * record's generated equality compares a double with
+ * {@code Double.compare}, which says yes to the first pair and no to the
+ * second, so it is already the comparison the corpus wants. {@link Bytes}
+ * is the one that is not, since an array compares by identity, and it is
+ * written out below.
  */
 public sealed interface Cell {
 
