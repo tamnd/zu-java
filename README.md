@@ -360,6 +360,17 @@ ZU_LIBRARY=/path/to/libzu.dylib java -jar zudb-bench/target/benchmarks.jar
 
 `ZU_LIBRARY` rather than `-Dzu.library` there, because JMH forks a JVM of its own and a fork inherits the environment rather than the system properties.
 
+The cross client corpus is a directory of cases in the engine's repository, versioned with it and answered by every client in the family. It is a command as well as a test:
+
+```sh
+mvn -pl zudb-corpus -am package -DskipTests
+ZU_LIBRARY=/path/to/libzu.dylib java --enable-native-access=ALL-UNNAMED \
+    -cp "zudb/target/classes:zudb-ffm/target/classes:zudb-corpus/target/classes" \
+    dev.zudb.corpus.Main /path/to/zu/conformance/cases
+```
+
+It prints a line per case that did not pass and then a summary, and the lines are the reference runner's word for word so that two clients disagreeing is a diff. `-strict` makes a case the engine has not caught up to fail the run, which is what a release branch wants, and `-work` keeps the databases rather than removing them. The same run happens under `mvn test` when `ZU_CASES` points at the cases, and skips when it does not, so a checkout of this repository alone is still green.
+
 The leak run is a script rather than a test, because what reads the result is the allocator rather than an assertion:
 
 ```sh
@@ -404,6 +415,7 @@ Inside this repository:
 | The Panama provider | `zudb-ffm` |
 | The JNI provider, and the C shim it calls through | `zudb-jni` |
 | The cases every provider owes, run by both of them | `zudb-tck` |
+| The cross client corpus, read and run against this client | `zudb-corpus` |
 | Arrow, over the C Data Interface | `zudb-arrow` |
 | JMH benchmarks | `zudb-bench` |
 | The staged libraries, built by the release rather than by a clone | `zudb-native` |
