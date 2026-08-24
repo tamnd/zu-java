@@ -26,6 +26,14 @@ package dev.zudb;
  * @param column the 1-based column in characters, or -1
  * @param offset the 0-based byte index into the statement, or -1
  * @param excerpt the line the position is on without its newline, or null
+ * @param subjectKind what the condition is about, when it is about something
+ *     the statement named: one lower-case word out of graph, schema, label,
+ *     property, variable, type and function, or null
+ * @param subject the name itself, written the way the statement wrote it and
+ *     with nothing around it, or null. Null exactly when subjectKind is
+ * @param graph the graph the statement was running in, or null when the
+ *     failure happened before there was one
+ * @param schema the schema the statement was running in, or null
  * @param docUrl where this condition is written up, or null
  * @param retryable whether running the same statement again could succeed
  */
@@ -39,6 +47,10 @@ public record Diagnostic(
     int column,
     int offset,
     String excerpt,
+    String subjectKind,
+    String subject,
+    String graph,
+    String schema,
     String docUrl,
     boolean retryable) {
 
@@ -109,6 +121,10 @@ public record Diagnostic(
    * @param column the 1-based column, or -1
    * @param offset the 0-based byte index, or -1
    * @param excerpt the line the position is on, or null
+   * @param subjectKind what {@code zu_error_subject_kind} answered, or null
+   * @param subject what {@code zu_error_subject} answered, or null
+   * @param graph what {@code zu_error_graph} answered, or null
+   * @param schema what {@code zu_error_schema} answered, or null
    * @param docUrl where this condition is written up, or null
    * @param retryable whether running the same statement again could succeed
    * @return the record
@@ -123,6 +139,10 @@ public record Diagnostic(
       int column,
       int offset,
       String excerpt,
+      String subjectKind,
+      String subject,
+      String graph,
+      String schema,
       String docUrl,
       boolean retryable) {
     return new Diagnostic(
@@ -135,6 +155,10 @@ public record Diagnostic(
         column,
         offset,
         excerpt,
+        subjectKind,
+        subject,
+        graph,
+        schema,
         docUrl,
         retryable);
   }
@@ -151,6 +175,7 @@ public record Diagnostic(
    */
   public static Diagnostic misuse(Status status, String message) {
     return new Diagnostic(
-        status, message, null, null, Severity.EXCEPTION, -1, -1, -1, null, null, false);
+        status, message, null, null, Severity.EXCEPTION, -1, -1, -1, null, null, null, null, null,
+        null, false);
   }
 }

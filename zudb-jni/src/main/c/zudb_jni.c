@@ -68,6 +68,10 @@
   X(error_position, zu_status, (const zu_error *, uint32_t *, uint32_t *))                \
   X(error_offset, zu_status, (const zu_error *, uint32_t *))                              \
   X(error_excerpt, const char *, (const zu_error *, size_t *))                            \
+  X(error_subject_kind, const char *, (const zu_error *, size_t *))                       \
+  X(error_subject, const char *, (const zu_error *, size_t *))                            \
+  X(error_graph, const char *, (const zu_error *, size_t *))                              \
+  X(error_schema, const char *, (const zu_error *, size_t *))                             \
   X(error_free, void, (zu_error *))                                                       \
   X(config_set, zu_status,                                                                \
     (zu_config *, const char *, size_t, const char *, size_t, zu_error **))               \
@@ -376,6 +380,8 @@ static void raise(JNIEnv *env, zu_status status, zu_error *e, const char *what) 
       env, c_binding, m_diagnostic, (jint)p_error_status(e), field(env, e, p_error_message),
       field(env, e, p_error_code), field(env, e, p_error_standard_text),
       (jint)p_error_severity(e), jline, jcolumn, joffset, field(env, e, p_error_excerpt),
+      field(env, e, p_error_subject_kind), field(env, e, p_error_subject),
+      field(env, e, p_error_graph), field(env, e, p_error_schema),
       field(env, e, p_error_doc_url), p_error_retryable(e) == 1 ? JNI_TRUE : JNI_FALSE);
   p_error_free(e);
   if (record == NULL) {
@@ -408,6 +414,8 @@ static jobject record(JNIEnv *env, zu_error *e) {
       env, c_binding, m_diagnostic, (jint)p_error_status(e), field(env, e, p_error_message),
       field(env, e, p_error_code), field(env, e, p_error_standard_text),
       (jint)p_error_severity(e), jline, jcolumn, joffset, field(env, e, p_error_excerpt),
+      field(env, e, p_error_subject_kind), field(env, e, p_error_subject),
+      field(env, e, p_error_graph), field(env, e, p_error_schema),
       field(env, e, p_error_doc_url), p_error_retryable(e) == 1 ? JNI_TRUE : JNI_FALSE);
   p_error_free(e);
   return out;
@@ -1899,7 +1907,7 @@ JNIEXPORT jboolean JNICALL Java_dev_zudb_jni_JniBinding_nRegister(JNIEnv *env, j
   }
 
   m_diagnostic = (*env)->GetStaticMethodID(env, self, "diagnostic",
-                                           "(I[B[B[BIIII[B[BZ)Ldev/zudb/Diagnostic;");
+                                           "(I[B[B[BIIII[B[B[B[B[B[BZ)Ldev/zudb/Diagnostic;");
   m_misuse =
       (*env)->GetStaticMethodID(env, self, "misuse", "(ILjava/lang/String;)Ldev/zudb/ZuException;");
   m_to_exception =

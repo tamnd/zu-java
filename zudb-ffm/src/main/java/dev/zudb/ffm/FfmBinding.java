@@ -1627,6 +1627,10 @@ final class FfmBinding implements ZuBinding {
       String condition = text(abi.errorStandardText, e);
       String docUrl = text(abi.errorDocUrl, e);
       String excerpt = text(abi.errorExcerpt, e);
+      String subjectKind = text(abi.errorSubjectKind, e);
+      String subject = text(abi.errorSubject, e);
+      String graph = text(abi.errorGraph, e);
+      String schema = text(abi.errorSchema, e);
       int line = -1;
       int column = -1;
       int offset = -1;
@@ -1639,8 +1643,8 @@ final class FfmBinding implements ZuBinding {
         offset = sl.get(JAVA_INT, C);
       }
       return Diagnostic.of(
-          status, message, code, condition, severity, line, column, offset, excerpt, docUrl,
-          retryable == 1);
+          status, message, code, condition, severity, line, column, offset, excerpt,
+          subjectKind, subject, graph, schema, docUrl, retryable == 1);
     } catch (Throwable t) {
       throw fail("zu_error", t);
     } finally {

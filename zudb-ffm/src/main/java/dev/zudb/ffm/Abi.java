@@ -54,6 +54,10 @@ final class Abi {
   final MethodHandle errorPosition;
   final MethodHandle errorOffset;
   final MethodHandle errorExcerpt;
+  final MethodHandle errorSubjectKind;
+  final MethodHandle errorSubject;
+  final MethodHandle errorGraph;
+  final MethodHandle errorSchema;
   final MethodHandle errorFree;
 
   final MethodHandle configSet;
@@ -195,6 +199,10 @@ final class Abi {
     errorPosition = h("zu_error_position", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, ADDRESS));
     errorOffset = h("zu_error_offset", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS));
     errorExcerpt = h("zu_error_excerpt", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+    errorSubjectKind = h("zu_error_subject_kind", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+    errorSubject = h("zu_error_subject", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+    errorGraph = h("zu_error_graph", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
+    errorSchema = h("zu_error_schema", FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS));
     errorFree = h("zu_error_free", FunctionDescriptor.ofVoid(ADDRESS));
 
     configSet =

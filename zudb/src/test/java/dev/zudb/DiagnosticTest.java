@@ -78,6 +78,10 @@ class DiagnosticTest {
             9,
             17,
             "MATCH (p:persn)",
+            "label",
+            "persn",
+            "main",
+            "public",
             "https://zudb.dev/errors/42N51",
             false);
     ZuException e = d.toException();
@@ -87,7 +91,23 @@ class DiagnosticTest {
     assertEquals(Severity.EXCEPTION, e.severity());
     assertEquals(new ZuException.Position(2, 9, 17), e.position().orElseThrow());
     assertEquals("MATCH (p:persn)", e.excerpt().orElseThrow());
+    // The kind is its own word rather than glued to the front of the name,
+    // so asking whether this is about a label is one string compared
+    // against one word.
+    assertEquals("label", e.subjectKind().orElseThrow());
+    assertEquals("persn", e.subject().orElseThrow());
+    assertEquals("main", e.graph().orElseThrow());
+    assertEquals("public", e.schema().orElseThrow());
     assertFalse(e.retryable());
+  }
+
+  @Test
+  void aRecordAboutNothingNamedCarriesNoSubject() {
+    ZuException e = diagnostic(Status.ERROR, "22012").toException();
+    assertTrue(e.subjectKind().isEmpty());
+    assertTrue(e.subject().isEmpty());
+    assertTrue(e.graph().isEmpty());
+    assertTrue(e.schema().isEmpty());
   }
 
   @Test
@@ -95,7 +115,7 @@ class DiagnosticTest {
     Diagnostic d =
         new Diagnostic(
             Status.ERROR, "bad", "42001", null, Severity.EXCEPTION, 1, 8, 7, "RETURN ?", null,
-            false);
+            null, null, null, null, false);
     String caret = d.toException().caret().orElseThrow();
     assertEquals("RETURN ?", caret.lines().findFirst().orElseThrow());
     assertTrue(caret.endsWith("^"));
@@ -111,7 +131,9 @@ class DiagnosticTest {
   @Test
   void theRawFactoryMapsBothNumbers() {
     Diagnostic d =
-        Diagnostic.of(3, "boom", "22012", "data exception", 4, 1, 1, 0, null, null, true);
+        Diagnostic.of(
+            3, "boom", "22012", "data exception", 4, 1, 1, 0, null, null, null, null, null, null,
+            true);
     assertEquals(Status.ERROR, d.status());
     assertEquals(Severity.EXCEPTION, d.severity());
     assertTrue(d.retryable());
@@ -126,6 +148,7 @@ class DiagnosticTest {
 
   private static Diagnostic diagnostic(Status status, String code) {
     return new Diagnostic(
-        status, "boom", code, null, Severity.EXCEPTION, -1, -1, -1, null, null, false);
+        status, "boom", code, null, Severity.EXCEPTION, -1, -1, -1, null, null, null, null, null,
+        null, false);
   }
 }

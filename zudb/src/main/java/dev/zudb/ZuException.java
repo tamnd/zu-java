@@ -42,7 +42,7 @@ public class ZuException extends RuntimeException {
 
   /**
    * The whole record this failure was built from, for a caller that would
-   * rather pass one value around than nine.
+   * rather pass one value around than fifteen.
    *
    * @return the record, never null
    */
@@ -115,6 +115,51 @@ public class ZuException extends RuntimeException {
    */
   public Optional<String> excerpt() {
     return Optional.ofNullable(diagnostic.excerpt());
+  }
+
+  /**
+   * What kind of thing the condition is about, when it is about something the
+   * statement named: one lower-case word out of graph, schema, label,
+   * property, variable, type and function.
+   *
+   * <p>Kept apart from {@link #subject()} rather than glued to the front of
+   * it, so that asking whether a failure is about a label is one string
+   * compared against one word. This and {@link #subject()} are both present
+   * or both empty.
+   *
+   * @return the kind, if the condition is about something named
+   */
+  public Optional<String> subjectKind() {
+    return Optional.ofNullable(diagnostic.subjectKind());
+  }
+
+  /**
+   * The name the condition is about, written the way the statement wrote it
+   * and with nothing around it, which is what an editor underlines.
+   *
+   * @return the name, if the condition is about something named
+   */
+  public Optional<String> subject() {
+    return Optional.ofNullable(diagnostic.subject());
+  }
+
+  /**
+   * The graph the statement was running in, which ISO 39075 subclause 23.2
+   * asks a diagnostic record to name.
+   *
+   * @return the graph, empty when the failure happened before there was one
+   */
+  public Optional<String> graph() {
+    return Optional.ofNullable(diagnostic.graph());
+  }
+
+  /**
+   * The schema the statement was running in.
+   *
+   * @return the schema, empty when the failure happened before there was one
+   */
+  public Optional<String> schema() {
+    return Optional.ofNullable(diagnostic.schema());
   }
 
   /**

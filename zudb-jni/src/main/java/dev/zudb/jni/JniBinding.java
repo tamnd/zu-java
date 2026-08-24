@@ -221,6 +221,10 @@ final class JniBinding implements ZuBinding {
       int column,
       int offset,
       byte[] excerpt,
+      byte[] subjectKind,
+      byte[] subject,
+      byte[] graph,
+      byte[] schema,
       byte[] docUrl,
       boolean retryable) {
     return Diagnostic.of(
@@ -233,6 +237,10 @@ final class JniBinding implements ZuBinding {
         column,
         offset,
         str(excerpt),
+        str(subjectKind),
+        str(subject),
+        str(graph),
+        str(schema),
         str(docUrl),
         retryable);
   }
