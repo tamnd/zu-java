@@ -50,6 +50,7 @@
   <modules>
     <module>zudb</module>
     <module>zudb-tck</module>
+    <module>zudb-corpus</module>
     <module>zudb-ffm</module>
     <module>zudb-jni</module>
     <module>zudb-arrow</module>

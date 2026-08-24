@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The shared conformance corpus, run through this client.
+
+  The corpus is a directory of YAML files versioned with the engine and
+  shipped to every client in the family. A case is a statement and what
+  running it must produce, so it is a corpus every client can run and no
+  client has to have written.
+
+  These are main sources for the same reason zudb-tck's are: a test
+  source set is not something another module can depend on without a
+  test jar, and this one is both a command a person runs against a
+  corpus directory and a fixture a test can call. Nothing here is
+  published.
+
+  It compiles to 25 rather than to the 17 the API targets, because
+  reading a result as Arrow through the C Data Interface is what the
+  Arrow half of the corpus asks for, and doing that without a dependency
+  on arrow-java wants java.lang.foreign.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.zudb</groupId>
+    <artifactId>zudb-parent</artifactId>
+    <version>0.11.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>zudb-corpus</artifactId>
+  <name>zu for the JVM: the shared corpus</name>
+  <description>The conformance corpus the engine and every other client run, read and run here.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.zudb</groupId>
+      <artifactId>zudb</artifactId>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>${zu.release.ffm}</release>
+          <compilerArgs>
+            <arg>-Xlint:all,-requires-automatic,-requires-transitive-automatic</arg>
+            <arg>-Werror</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
