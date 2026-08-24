@@ -1,7 +1,8 @@
 ctor public dev.zudb.Config(long, long, boolean)
-ctor public dev.zudb.Diagnostic(dev.zudb.Status, java.lang.String, java.lang.String, java.lang.String, dev.zudb.Severity, int, int, int, java.lang.String, java.lang.String, boolean)
+ctor public dev.zudb.Diagnostic(dev.zudb.Status, java.lang.String, java.lang.String, java.lang.String, dev.zudb.Severity, int, int, int, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, boolean)
 ctor public dev.zudb.Value$BindingTable()
 ctor public dev.zudb.Value$Bool(boolean)
+ctor public dev.zudb.Value$Bytes(byte[])
 ctor public dev.zudb.Value$Field(java.lang.String, dev.zudb.Value)
 ctor public dev.zudb.Value$Float(double)
 ctor public dev.zudb.Value$Graph()
@@ -36,6 +37,7 @@ field public static final dev.zudb.Status dev.zudb.Status.UNKNOWN
 field public static final dev.zudb.Status dev.zudb.Status.UNSUPPORTED
 field public static final dev.zudb.Type dev.zudb.Type.BINDING_TABLE
 field public static final dev.zudb.Type dev.zudb.Type.BOOL
+field public static final dev.zudb.Type dev.zudb.Type.BYTES
 field public static final dev.zudb.Type dev.zudb.Type.FLOAT
 field public static final dev.zudb.Type dev.zudb.Type.GRAPH
 field public static final dev.zudb.Type dev.zudb.Type.INT
@@ -62,6 +64,7 @@ method public abstract boolean dev.zudb.spi.ZuBinding.connInTransaction(long)
 method public abstract boolean dev.zudb.spi.ZuBinding.connUnregister(long, java.lang.String)
 method public abstract boolean dev.zudb.spi.ZuBinding.databaseIsMemory(long)
 method public abstract boolean dev.zudb.spi.ZuBinding.valueBoolean(long)
+method public abstract byte[] dev.zudb.spi.ZuBinding.valueBytes(long)
 method public abstract dev.zudb.Diagnostic dev.zudb.spi.ZuBinding.resultNotice(long, int)
 method public abstract dev.zudb.spi.ZuBinding dev.zudb.spi.ZuProvider.load(java.nio.file.Path)
 method public abstract double dev.zudb.spi.ZuBinding.valueDouble(long)
@@ -73,6 +76,7 @@ method public abstract int dev.zudb.spi.ZuBinding.valueType(long)
 method public abstract int dev.zudb.spi.ZuProvider.priority()
 method public abstract java.lang.String dev.zudb.spi.ZuBinding.appenderColumnName(long, int)
 method public abstract java.lang.String dev.zudb.spi.ZuBinding.connRegisteredName(long, long)
+method public abstract java.lang.String dev.zudb.spi.ZuBinding.connTableName(long, int)
 method public abstract java.lang.String dev.zudb.spi.ZuBinding.databasePath(long)
 method public abstract java.lang.String dev.zudb.spi.ZuBinding.resultCellString(long, long, int)
 method public abstract java.lang.String dev.zudb.spi.ZuBinding.resultColName(long, int)
@@ -178,7 +182,11 @@ method public boolean dev.zudb.Row.isNull(int)
 method public boolean dev.zudb.Row.isNull(java.lang.String)
 method public boolean dev.zudb.Statement.isClosed()
 method public boolean dev.zudb.Value$Bool.value()
+method public boolean dev.zudb.Value$Bytes.equals(java.lang.Object)
 method public boolean dev.zudb.ZuException.retryable()
+method public byte[] dev.zudb.Row.getBytes(int)
+method public byte[] dev.zudb.Row.getBytes(java.lang.String)
+method public byte[] dev.zudb.Value$Bytes.value()
 method public dev.zudb.Appender dev.zudb.Appender.append(boolean)
 method public dev.zudb.Appender dev.zudb.Appender.append(byte[])
 method public dev.zudb.Appender dev.zudb.Appender.append(dev.zudb.Value$Temporal$Kind, long)
@@ -327,6 +335,7 @@ method public int dev.zudb.Result.columnIndex(java.lang.String)
 method public int dev.zudb.Result.columns()
 method public int dev.zudb.Status.value()
 method public int dev.zudb.Type.value()
+method public int dev.zudb.Value$Bytes.hashCode()
 method public int dev.zudb.Value$Node.table()
 method public int dev.zudb.Value$Rel.table()
 method public int dev.zudb.Value$Temporal$Kind.value()
@@ -335,18 +344,24 @@ method public int dev.zudb.ZuException$Position.column()
 method public int dev.zudb.ZuException$Position.line()
 method public int dev.zudb.ZuException$Position.offset()
 method public java.lang.String dev.zudb.Appender.columnName(int)
+method public java.lang.String dev.zudb.Connection.tableName(int)
 method public java.lang.String dev.zudb.Database.path()
 method public java.lang.String dev.zudb.Diagnostic.code()
 method public java.lang.String dev.zudb.Diagnostic.condition()
 method public java.lang.String dev.zudb.Diagnostic.docUrl()
 method public java.lang.String dev.zudb.Diagnostic.excerpt()
+method public java.lang.String dev.zudb.Diagnostic.graph()
 method public java.lang.String dev.zudb.Diagnostic.message()
+method public java.lang.String dev.zudb.Diagnostic.schema()
+method public java.lang.String dev.zudb.Diagnostic.subject()
+method public java.lang.String dev.zudb.Diagnostic.subjectKind()
 method public java.lang.String dev.zudb.Frame.name()
 method public java.lang.String dev.zudb.Result.columnName(int)
 method public java.lang.String dev.zudb.Result.gqlstatus()
 method public java.lang.String dev.zudb.Row.getString(int)
 method public java.lang.String dev.zudb.Row.getString(java.lang.String)
 method public java.lang.String dev.zudb.Row.toString()
+method public java.lang.String dev.zudb.Value$Bytes.toString()
 method public java.lang.String dev.zudb.Value$Field.name()
 method public java.lang.String dev.zudb.Value$Str.value()
 method public java.nio.ByteBuffer dev.zudb.Chunk.valid(int)
@@ -378,6 +393,10 @@ method public java.util.Optional<java.lang.String> dev.zudb.ZuException.code()
 method public java.util.Optional<java.lang.String> dev.zudb.ZuException.condition()
 method public java.util.Optional<java.lang.String> dev.zudb.ZuException.docUrl()
 method public java.util.Optional<java.lang.String> dev.zudb.ZuException.excerpt()
+method public java.util.Optional<java.lang.String> dev.zudb.ZuException.graph()
+method public java.util.Optional<java.lang.String> dev.zudb.ZuException.schema()
+method public java.util.Optional<java.lang.String> dev.zudb.ZuException.subject()
+method public java.util.Optional<java.lang.String> dev.zudb.ZuException.subjectKind()
 method public java.util.Spliterator<dev.zudb.Row> dev.zudb.Result.spliterator()
 method public java.util.stream.Stream<dev.zudb.Chunk> dev.zudb.Result.chunks()
 method public java.util.stream.Stream<dev.zudb.Row> dev.zudb.Result.stream()
@@ -419,7 +438,7 @@ method public static dev.zudb.Database dev.zudb.Database.open(java.lang.String, 
 method public static dev.zudb.Database dev.zudb.Database.open(java.nio.file.Path)
 method public static dev.zudb.Database dev.zudb.Database.open(java.nio.file.Path, dev.zudb.Config)
 method public static dev.zudb.Diagnostic dev.zudb.Diagnostic.misuse(dev.zudb.Status, java.lang.String)
-method public static dev.zudb.Diagnostic dev.zudb.Diagnostic.of(int, java.lang.String, java.lang.String, java.lang.String, int, int, int, int, java.lang.String, java.lang.String, boolean)
+method public static dev.zudb.Diagnostic dev.zudb.Diagnostic.of(int, java.lang.String, java.lang.String, java.lang.String, int, int, int, int, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String, boolean)
 method public static dev.zudb.Frame dev.zudb.Frame.of(java.lang.String, long)
 method public static dev.zudb.Frame dev.zudb.Frame.of(java.lang.String, long, java.lang.Runnable)
 method public static dev.zudb.Loader dev.zudb.Loader.create(java.nio.file.Path)
@@ -464,7 +483,7 @@ method public void dev.zudb.Result.exportArrow(long)
 method public void dev.zudb.Result.exportArrow(long, long)
 method public void dev.zudb.Statement.close()
 type public abstract interface dev.zudb.Progress
-type public abstract interface dev.zudb.Value sealed permits dev.zudb.Value$BindingTable, dev.zudb.Value$Bool, dev.zudb.Value$Float, dev.zudb.Value$Graph, dev.zudb.Value$Int, dev.zudb.Value$List, dev.zudb.Value$Node, dev.zudb.Value$Null, dev.zudb.Value$Path, dev.zudb.Value$Record, dev.zudb.Value$Rel, dev.zudb.Value$Str, dev.zudb.Value$Temporal
+type public abstract interface dev.zudb.Value sealed permits dev.zudb.Value$BindingTable, dev.zudb.Value$Bool, dev.zudb.Value$Bytes, dev.zudb.Value$Float, dev.zudb.Value$Graph, dev.zudb.Value$Int, dev.zudb.Value$List, dev.zudb.Value$Node, dev.zudb.Value$Null, dev.zudb.Value$Path, dev.zudb.Value$Record, dev.zudb.Value$Rel, dev.zudb.Value$Str, dev.zudb.Value$Temporal
 type public abstract interface dev.zudb.spi.ZuBinding
 type public abstract interface dev.zudb.spi.ZuProvider
 type public class dev.zudb.ZuClosedException extends dev.zudb.ZuProgrammingException
@@ -497,6 +516,7 @@ type public final record dev.zudb.Diagnostic extends java.lang.Record
 type public static final enum dev.zudb.Value$Temporal$Kind extends java.lang.Enum<dev.zudb.Value$Temporal$Kind>
 type public static final record dev.zudb.Value$BindingTable extends java.lang.Record implements dev.zudb.Value
 type public static final record dev.zudb.Value$Bool extends java.lang.Record implements dev.zudb.Value
+type public static final record dev.zudb.Value$Bytes extends java.lang.Record implements dev.zudb.Value
 type public static final record dev.zudb.Value$Field extends java.lang.Record
 type public static final record dev.zudb.Value$Float extends java.lang.Record implements dev.zudb.Value
 type public static final record dev.zudb.Value$Graph extends java.lang.Record implements dev.zudb.Value

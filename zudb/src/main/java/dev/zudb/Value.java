@@ -86,12 +86,56 @@ public sealed interface Value {
   record Str(String value) implements Value {}
 
   /**
+   * A byte string, which is octets and not text.
+   *
+   * <p>A type of its own rather than a {@link Value.Str} that happens to hold
+   * bytes, because a host that took them for a string would decode them, and
+   * octets that are not UTF-8 do not survive that.
+   *
+   * <p>The array is this value's own copy and nothing else holds it, so
+   * writing to it changes nothing but the copy. The three methods below are
+   * written out because a record over an array compares by identity
+   * otherwise, and two byte strings holding the same octets are one value.
+   *
+   * @param value what it is
+   */
+  record Bytes(byte[] value) implements Value {
+
+    @Override
+    public boolean equals(Object other) {
+      return other instanceof Bytes b && java.util.Arrays.equals(value, b.value);
+    }
+
+    @Override
+    public int hashCode() {
+      return java.util.Arrays.hashCode(value);
+    }
+
+    /**
+     * The octets in hex, which is how the corpus and the engine both spell
+     * one, rather than the array's identity.
+     *
+     * @return {@code X'00AB'}, and {@code X''} for no octets at all
+     */
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder(value.length * 2 + 3).append("X'");
+      for (byte b : value) {
+        sb.append(HEX[(b >> 4) & 0xF]).append(HEX[b & 0xF]);
+      }
+      return sb.append('\'').toString();
+    }
+
+    private static final char[] HEX = "0123456789ABCDEF".toCharArray();
+  }
+
+  /**
    * A node, which is a table and a row of it, because neither identifies a
    * node on its own: two tables number their rows from zero.
    *
-   * @param table which table, as the number the engine keeps it under. The C
-   *     ABI has no call that turns that number into a name, so this client
-   *     hands over the number rather than a guess
+   * @param table which table, as the number the engine keeps it under.
+   *     {@link Connection#tableName(int)} turns that number into the name the
+   *     statement wrote
    * @param offset which row of it
    */
   record Node(int table, long offset) implements Value {}

@@ -52,14 +52,14 @@
 #include <stdint.h>
 
 /* The revision of this ABI (dx/02 section 8), which is what a build
- * system tests when it has to compile one way against 0.12 and another
+ * system tests when it has to compile one way against 0.14 and another
  * against what comes next. The two numbers are counts and not decimals,
- * so 0.12 is the revision after 0.11 and a caller comparing them
+ * so 0.14 is the revision after 0.13 and a caller comparing them
  * compares each on its own. `cargo xtask package` holds it to the
  * constant the rest of the workspace reports, `zu version` included,
  * so a header and a binary that disagree is a failed check rather than
  * a caller's afternoon. */
-#define ZU_ABI_VERSION "0.12"
+#define ZU_ABI_VERSION "0.14"
 
 #ifdef __cplusplus
 extern "C" {
@@ -154,6 +154,10 @@ typedef enum zu_status {
    whole of what a binding can say about the cell. */
 #define ZU_TYPE_GRAPH 11
 #define ZU_TYPE_BINDING_TABLE 12
+/* GV35, a byte string. It reads through zu_value_bytes and not through
+   zu_value_str: the octets need not be text, and a host that took them
+   for a string would decode them. */
+#define ZU_TYPE_BYTES 13
 
 /* Which temporal a temporal cell is, from zu_value_temporal. The unit
  * follows the kind: days for a date, months for a year-month duration,
@@ -227,6 +231,21 @@ const char *zu_version(void);
  * is longer than anyone would read under a caret, since a line cut to
  * fit would put the column somewhere it is not.
  *
+ * zu_error_subject_kind and zu_error_subject are what the condition is
+ * about, when it is about something the statement named: the kind is
+ * one lower-case word out of graph, schema, label, property, variable,
+ * type and function, and the subject is the name itself, written the
+ * way the statement wrote it and with nothing around it. They are both
+ * NULL or both set. A binding that highlights the offending label in
+ * an editor wants the name on its own, and the kind is kept in its own
+ * accessor rather than glued to the front of it so that asking "is
+ * this about a label" is one string compared against one word.
+ *
+ * zu_error_graph and zu_error_schema are where the statement was
+ * running, which ISO 39075 subclause 23.2 asks a diagnostic record to
+ * name. They are NULL when the failure happened before there was one,
+ * which is the case for a connection that never opened.
+ *
  * The message says all of this in words and keeps saying it, so
  * printing it alone is still a complete report. The fields are for the
  * caller that would rather underline the token than read the numbers
@@ -241,6 +260,10 @@ int32_t zu_error_retryable(const zu_error *e); /* -1 for a NULL error */
 zu_status zu_error_position(const zu_error *e, uint32_t *line, uint32_t *column);
 zu_status zu_error_offset(const zu_error *e, uint32_t *offset);
 const char *zu_error_excerpt(const zu_error *e, size_t *len);
+const char *zu_error_subject_kind(const zu_error *e, size_t *len);
+const char *zu_error_subject(const zu_error *e, size_t *len);
+const char *zu_error_graph(const zu_error *e, size_t *len);
+const char *zu_error_schema(const zu_error *e, size_t *len);
 void zu_error_free(zu_error *e);
 
 /* How a database is opened. The only struct that crosses this boundary
@@ -586,6 +609,12 @@ zu_status zu_value_bool(const zu_value *v, int32_t *out);
 zu_status zu_value_i64(const zu_value *v, int64_t *out);
 zu_status zu_value_f64(const zu_value *v, double *out);
 zu_status zu_value_str(const zu_value *v, const char **out, size_t *len);
+/* A byte string on the same terms as zu_value_str: pointing into the
+ * result's bytes, not copied, not NUL-terminated, and len may not be
+ * NULL. A separate accessor because the two hold different types and
+ * one answering both would let a host read octets as text without ever
+ * asking whether they were. */
+zu_status zu_value_bytes(const zu_value *v, const uint8_t **out, size_t *len);
 /* kind and count are required; offset may be NULL for a host with no
  * zoned type, and is minutes east of UTC, 0 for the five kinds that
  * carry none. */
@@ -594,6 +623,11 @@ zu_status zu_value_temporal(const zu_value *v, int32_t *kind, int64_t *count, in
  * number their rows from zero. Either out-parameter may be NULL. */
 zu_status zu_value_node(const zu_value *v, uint32_t *table, uint64_t *offset);
 zu_status zu_value_rel(const zu_value *v, uint32_t *table, uint64_t *src, uint64_t *dst);
+/* What that table id is called, or NULL when no table has that id. Node
+ * and rel tables share one id space, so one call answers for both
+ * kinds. NUL-terminated, owned by the connection, and valid until the
+ * next zu_conn_table_name on it or until it closes; len may be NULL. */
+const char *zu_conn_table_name(zu_conn *conn, uint32_t table, size_t *len);
 uint64_t zu_value_len(const zu_value *v);
 zu_status zu_value_at(const zu_value *v, uint64_t i, const zu_value **out);
 /* A record's fields are in name order and a name appears once, which is

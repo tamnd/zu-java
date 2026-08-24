@@ -221,6 +221,10 @@ final class JniBinding implements ZuBinding {
       int column,
       int offset,
       byte[] excerpt,
+      byte[] subjectKind,
+      byte[] subject,
+      byte[] graph,
+      byte[] schema,
       byte[] docUrl,
       boolean retryable) {
     return Diagnostic.of(
@@ -233,6 +237,10 @@ final class JniBinding implements ZuBinding {
         column,
         offset,
         str(excerpt),
+        str(subjectKind),
+        str(subject),
+        str(graph),
+        str(schema),
         str(docUrl),
         retryable);
   }
@@ -325,6 +333,11 @@ final class JniBinding implements ZuBinding {
   @Override
   public long connRowsRead(long conn) {
     return nConnRowsRead(conn);
+  }
+
+  @Override
+  public String connTableName(long conn, int table) {
+    return str(nConnTableName(conn, table));
   }
 
   @Override
@@ -555,6 +568,12 @@ final class JniBinding implements ZuBinding {
   @Override
   public String valueString(long value) {
     return str(nValueString(value));
+  }
+
+  @Override
+  public byte[] valueBytes(long value) {
+    byte[] octets = nValueBytes(value);
+    return octets == null ? new byte[0] : octets;
   }
 
   @Override
@@ -874,6 +893,8 @@ final class JniBinding implements ZuBinding {
 
   private static native long nConnRowsRead(long conn);
 
+  private static native byte[] nConnTableName(long conn, int table);
+
   private static native long nConnSetProgress(long conn, Progress watcher, long intervalMillis);
 
   private static native void nWatchFree(long cookie);
@@ -958,6 +979,8 @@ final class JniBinding implements ZuBinding {
   private static native double nValueDouble(long value);
 
   private static native byte[] nValueString(long value);
+
+  private static native byte[] nValueBytes(long value);
 
   private static native long[] nValueTemporal(long value);
 

@@ -68,6 +68,10 @@
   X(error_position, zu_status, (const zu_error *, uint32_t *, uint32_t *))                \
   X(error_offset, zu_status, (const zu_error *, uint32_t *))                              \
   X(error_excerpt, const char *, (const zu_error *, size_t *))                            \
+  X(error_subject_kind, const char *, (const zu_error *, size_t *))                       \
+  X(error_subject, const char *, (const zu_error *, size_t *))                            \
+  X(error_graph, const char *, (const zu_error *, size_t *))                              \
+  X(error_schema, const char *, (const zu_error *, size_t *))                             \
   X(error_free, void, (zu_error *))                                                       \
   X(config_set, zu_status,                                                                \
     (zu_config *, const char *, size_t, const char *, size_t, zu_error **))               \
@@ -87,6 +91,7 @@
   X(conn_close, void, (zu_conn *))                                                        \
   X(conn_interrupt, zu_status, (zu_conn *))                                               \
   X(conn_rows_read, zu_status, (zu_conn *, uint64_t *))                                   \
+  X(conn_table_name, const char *, (zu_conn *, uint32_t, size_t *))                       \
   X(conn_set_progress, zu_status, (zu_conn *, zu_progress_fn, void *, uint64_t))          \
   X(query, zu_status, (zu_conn *, const char *, size_t, zu_result **, zu_error **))       \
   X(prepare, zu_status, (zu_conn *, const char *, size_t, zu_stmt **, zu_error **))       \
@@ -130,6 +135,7 @@
   X(value_i64, zu_status, (const zu_value *, int64_t *))                                  \
   X(value_f64, zu_status, (const zu_value *, double *))                                   \
   X(value_str, zu_status, (const zu_value *, const char **, size_t *))                    \
+  X(value_bytes, zu_status, (const zu_value *, const uint8_t **, size_t *))               \
   X(value_temporal, zu_status, (const zu_value *, int32_t *, int64_t *, int32_t *))       \
   X(value_node, zu_status, (const zu_value *, uint32_t *, uint64_t *))                    \
   X(value_rel, zu_status, (const zu_value *, uint32_t *, uint64_t *, uint64_t *))         \
@@ -374,6 +380,8 @@ static void raise(JNIEnv *env, zu_status status, zu_error *e, const char *what) 
       env, c_binding, m_diagnostic, (jint)p_error_status(e), field(env, e, p_error_message),
       field(env, e, p_error_code), field(env, e, p_error_standard_text),
       (jint)p_error_severity(e), jline, jcolumn, joffset, field(env, e, p_error_excerpt),
+      field(env, e, p_error_subject_kind), field(env, e, p_error_subject),
+      field(env, e, p_error_graph), field(env, e, p_error_schema),
       field(env, e, p_error_doc_url), p_error_retryable(e) == 1 ? JNI_TRUE : JNI_FALSE);
   p_error_free(e);
   if (record == NULL) {
@@ -406,6 +414,8 @@ static jobject record(JNIEnv *env, zu_error *e) {
       env, c_binding, m_diagnostic, (jint)p_error_status(e), field(env, e, p_error_message),
       field(env, e, p_error_code), field(env, e, p_error_standard_text),
       (jint)p_error_severity(e), jline, jcolumn, joffset, field(env, e, p_error_excerpt),
+      field(env, e, p_error_subject_kind), field(env, e, p_error_subject),
+      field(env, e, p_error_graph), field(env, e, p_error_schema),
       field(env, e, p_error_doc_url), p_error_retryable(e) == 1 ? JNI_TRUE : JNI_FALSE);
   p_error_free(e);
   return out;
@@ -699,6 +709,13 @@ static jlong n_conn_rows_read(JNIEnv *env, jclass self, jlong conn) {
   (void)self;
   FAIL_IF_V(env, st, NULL, "zu_conn_rows_read", 0);
   return (jlong)out;
+}
+
+static jbyteArray n_conn_table_name(JNIEnv *env, jclass self, jlong conn, jint table) {
+  size_t len = 0;
+  const char *p = p_conn_table_name(H(zu_conn, conn), (uint32_t)table, &len);
+  (void)self;
+  return bytes(env, p, len);
 }
 
 /* ---- the progress callback ---- */
@@ -1151,6 +1168,15 @@ static jbyteArray n_value_string(JNIEnv *env, jclass self, jlong value) {
   (void)self;
   FAIL_IF_V(env, st, NULL, "zu_value_str", NULL);
   return bytes(env, p, len);
+}
+
+static jbyteArray n_value_bytes(JNIEnv *env, jclass self, jlong value) {
+  const uint8_t *p = NULL;
+  size_t len = 0;
+  zu_status st = p_value_bytes(H(zu_value, value), &p, &len);
+  (void)self;
+  FAIL_IF_V(env, st, NULL, "zu_value_bytes", NULL);
+  return bytes(env, (const char *)p, len);
 }
 
 static jlongArray n_value_temporal(JNIEnv *env, jclass self, jlong value) {
@@ -1756,6 +1782,7 @@ static const JNINativeMethod methods[] = {
     {"nConnClose", "(J)V", (void *)n_conn_close},
     {"nConnInterrupt", "(J)V", (void *)n_conn_interrupt},
     {"nConnRowsRead", "(J)J", (void *)n_conn_rows_read},
+    {"nConnTableName", "(JI)[B", (void *)n_conn_table_name},
     {"nConnSetProgress", "(JLdev/zudb/Progress;J)J", (void *)n_conn_set_progress},
     {"nWatchFree", "(J)V", (void *)n_watch_free},
     {"nConnInTransaction", "(J)Z", (void *)n_conn_in_transaction},
@@ -1798,6 +1825,7 @@ static const JNINativeMethod methods[] = {
     {"nValueLong", "(J)J", (void *)n_value_long},
     {"nValueDouble", "(J)D", (void *)n_value_double},
     {"nValueString", "(J)[B", (void *)n_value_string},
+    {"nValueBytes", "(J)[B", (void *)n_value_bytes},
     {"nValueTemporal", "(J)[J", (void *)n_value_temporal},
     {"nValueNode", "(J)[J", (void *)n_value_node},
     {"nValueRel", "(J)[J", (void *)n_value_rel},
@@ -1879,7 +1907,7 @@ JNIEXPORT jboolean JNICALL Java_dev_zudb_jni_JniBinding_nRegister(JNIEnv *env, j
   }
 
   m_diagnostic = (*env)->GetStaticMethodID(env, self, "diagnostic",
-                                           "(I[B[B[BIIII[B[BZ)Ldev/zudb/Diagnostic;");
+                                           "(I[B[B[BIIII[B[B[B[B[B[BZ)Ldev/zudb/Diagnostic;");
   m_misuse =
       (*env)->GetStaticMethodID(env, self, "misuse", "(ILjava/lang/String;)Ldev/zudb/ZuException;");
   m_to_exception =

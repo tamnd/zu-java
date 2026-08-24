@@ -233,6 +233,19 @@ final class FfmBinding implements ZuBinding {
   }
 
   @Override
+  public String connTableName(long conn, int table) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    try {
+      MemorySegment out =
+          (MemorySegment) abi.connTableName.invokeExact(ptr(conn), table, sl.asSlice(LEN, 8));
+      return utf8(out.address(), sl.get(JAVA_LONG, LEN));
+    } catch (Throwable t) {
+      throw fail("zu_conn_table_name", t);
+    }
+  }
+
+  @Override
   public void connSetProgress(long conn, dev.zudb.Progress watcher, long intervalMillis) {
     if (watcher == null) {
       try {
@@ -694,6 +707,20 @@ final class FfmBinding implements ZuBinding {
       return utf8(sl.get(ADDRESS, OUT).address(), sl.get(JAVA_LONG, LEN));
     } catch (Throwable t) {
       throw fail("zu_value_str", t);
+    }
+  }
+
+  @Override
+  public byte[] valueBytes(long value) {
+    Scratch s = Scratch.get();
+    MemorySegment sl = s.slots();
+    try {
+      int st = (int) abi.valueBytes.invokeExact(ptr(value), sl.asSlice(OUT, 8), sl.asSlice(LEN, 8));
+      check("zu_value_bytes", st, null);
+      byte[] octets = octets(sl.get(ADDRESS, OUT).address(), sl.get(JAVA_LONG, LEN));
+      return octets == null ? new byte[0] : octets;
+    } catch (Throwable t) {
+      throw fail("zu_value_bytes", t);
     }
   }
 
@@ -1600,6 +1627,10 @@ final class FfmBinding implements ZuBinding {
       String condition = text(abi.errorStandardText, e);
       String docUrl = text(abi.errorDocUrl, e);
       String excerpt = text(abi.errorExcerpt, e);
+      String subjectKind = text(abi.errorSubjectKind, e);
+      String subject = text(abi.errorSubject, e);
+      String graph = text(abi.errorGraph, e);
+      String schema = text(abi.errorSchema, e);
       int line = -1;
       int column = -1;
       int offset = -1;
@@ -1612,8 +1643,8 @@ final class FfmBinding implements ZuBinding {
         offset = sl.get(JAVA_INT, C);
       }
       return Diagnostic.of(
-          status, message, code, condition, severity, line, column, offset, excerpt, docUrl,
-          retryable == 1);
+          status, message, code, condition, severity, line, column, offset, excerpt,
+          subjectKind, subject, graph, schema, docUrl, retryable == 1);
     } catch (Throwable t) {
       throw fail("zu_error", t);
     } finally {
@@ -1633,15 +1664,20 @@ final class FfmBinding implements ZuBinding {
   }
 
   private static String utf8(long address, long length) {
+    byte[] bytes = octets(address, length);
+    return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
+  }
+
+  /** A run of native bytes, copied out, or null for a null pointer. */
+  private static byte[] octets(long address, long length) {
     if (address == 0) {
       return null;
     }
-    if (length == 0) {
-      return "";
-    }
     byte[] bytes = new byte[(int) length];
-    MemorySegment.copy(reinterpret(address, length), JAVA_BYTE, 0, bytes, 0, bytes.length);
-    return new String(bytes, StandardCharsets.UTF_8);
+    if (length > 0) {
+      MemorySegment.copy(reinterpret(address, length), JAVA_BYTE, 0, bytes, 0, bytes.length);
+    }
+    return bytes;
   }
 
   @SuppressWarnings("restricted")
