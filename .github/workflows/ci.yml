@@ -127,6 +127,59 @@ jobs:
 
       - run: java -jar zudb-bench/target/benchmarks.jar -f 1 -wi 1 -i 1 -r 1s -w 1s
 
+  # The cross client corpus, run against the engine this job builds.
+  # Every client answers the same fourteen hundred cases and a report is
+  # diffed line for line against the other four, so this is the job that
+  # says this client agrees with them rather than only with itself.
+  #
+  # The cases come from the same checkout the library was built from,
+  # which is the pairing that makes the report mean anything. A corpus
+  # ahead of the library reports the engine catching up to its own cases
+  # as this client failing, and a library ahead of the corpus reports
+  # nothing at all. This client builds the engine rather than shipping an
+  # archive of it, so both are the same checkout and there is no revision
+  # to pin.
+  #
+  # A job of its own rather than a step in the one above, because the run
+  # is fourteen hundred databases and the job above runs its suite three
+  # times.
+  corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: tamnd/zu
+          path: engine
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      - name: Build libzu
+        working-directory: engine
+        run: cargo build --release -p zu-capi
+
+      - name: Where the library landed
+        run: |
+          set -eu
+          lib="$(ls engine/target/release/libzu.so)"
+          test -n "$lib"
+          echo "ZU_LIBRARY=$GITHUB_WORKSPACE/$lib" >> "$GITHUB_ENV"
+
+      # Verbose, because the run logs every case the engine has not
+      # caught up to and a release branch is read for exactly that.
+      - run: mvn $MAVEN_ARGS -pl zudb-corpus -am test -Dsurefire.useFile=false
+        env:
+          ZU_CASES: ${{ github.workspace }}/engine/conformance/cases
+
   # The JNI provider on the JDKs it exists for. Panama is not there on
   # 17 or 21, so on those two this is the only way to call the engine at
   # all, and a client that claims 17 and is only ever tested on 25 is a
